@@ -1,39 +1,124 @@
 # **This is header 1**
 ## This is header 2
 This is a [link](https://github.com/xiuyucao) to my Github profile page
-This is a photo
-
-![](/Users/xycao/Downloads/fire.jpg.webp){width=40%}
-
 
 This is a `code block` 
 
 Give a blank row to change rows!
 
-## Introduction
-Here are some introductions about my final project
-## Fig1 --> Wildfire events in the whole United states **using tmap??**
-(read in data and plot first here and hide the codes, hereafter only show the codes but do no evaluation)
-
-## Code and comments
-Beginning here, I put all my codes and explanations, with figures to help explicitly explan
-
-The packages needed are as follows. First load all the packages **remember to comment the packages**
-```{r eval=F}
-library(sf)
-library(plotly)  # seems i didnt use this package
-library(tigris)
-library(dplyr)
-library(mapsf)
-library(usmap)
+******************************************************
+## Needed Packages
+Run the following codes to import packages necessary in this project.
+```{r import packages, message=F}
+library(sf)  # for working with spatial data
+library(tigris)  # for getting US census data
+library(mapsf)  # for plotting maps
+library(dplyr)  # for doing join
+library(ggplot2)  # for plotting maps
 ```
-## read the data
-```{r eval=F}
+
+******************************************************
+## Introduction
+![](/Users/xycao/Downloads/fire.jpg.webp){width=100%}(change path in the end)
+
+Wildfire occurs frequently around the United States. According to the data from [National Interagency Fire Center (NIFC)](https://data-nifc.opendata.arcgis.com), just in last year (2022), there have been 40,000 of wildfire events across the country, as is shown in the following map.
+```{r read data and plot us wildfires, echo=F,eval=T}
+library(sf)
+library(ggplot2)
 wildfire_all = read.csv('../data/lab1/wildfire.csv')  # all of the wildland fires in previous years in the US
 resp18_all = read.csv('../data/lab1/2018_RESP.csv')  # all of the respiratory death in the US in 2018
+wildfire_us = subset(wildfire_all, substring(FireDiscoveryDateTime,3,4)=='22')
+wildfire_us=st_as_sf(wildfire_us,coords=c('X','Y'),crs=4326)
+usa <- st_as_sf(maps::map("state", fill=TRUE, plot =FALSE))
+usa=st_transform(usa,crs=4308)
+ggplot()+
+  geom_sf(data=usa)+
+  geom_sf(data=wildfire_us,size=.02,col='red')+
+  ggtitle('This is a Title')+
+  labs(title = "Wildfire Events in the United States, 2022")+
+  xlim(-130,-60)+ylim(25,50)
 ```
-## glimpse of the data
-The meanings of the attributes are as follows **(create a table)**
+
+Each red point in the map represents a single wildfire event in 2022. As we can see, the west coast of the United States experience a higher frequency of wildfires. This is due to multiple reasons including the climate, vegetation kind, topography, etc. Apart from the extensive damage wildfires inflict on the ecosystem, the particles and gases they emit also raise concerns about public health.
+
+In order to find out the impact of wildfires on public health, I analyzed the correlation between wildfire frequency and deaths caused by resiratory diseases in California. The method and result are as follows
+
+******************************************************
+## Method and Result
+The wildfire data is from [NIFC](https://data-nifc.opendata.arcgis.com). It contains all the wildfire events in the past 20 years in the United States.
+```{r eval=F}
+wildfire_all = read.csv('../data/lab1/wildfire.csv')  # read the downloaded wildfire data
+```
+The key attributes of the data are as follows.
+
+| Attribute Name        | Meaning                          | Class     | Example                |
+|-----------------------|----------------------------------|-----------|------------------------|
+| X                     | Longitude                        | numeric   | -118.18071             |
+| Y                     | Latitude                         | numeric   | 22.80898               |
+| FireDiscoveryDateTime | Time When the Fire is Discovered | character | 2020/02/28 20:45:40+00 |
+
+The respiratory death rate data is from [the Institute for Health Metrics and Evaluation](https://www.healthdata.org). From its data gateway, we can get the data of a specific year. In this study, to get rid of the impact of Covid 19, I used the data of 2018.
+```{r eval=F}
+resp18_all = read.csv('../data/lab1/2018_RESP.csv')  # read the downloaded respiratory death rate data
+```
+The key attributes of the data are as follows
+
+| Attribute    | Meaning                                | Class   | Example      |
+|--------------|----------------------------------------|---------|--------------|
+| fips         | FIP code of the place (state + county) | numeric | 6115         |
+| race_id      | race group (1 for all races)           | numeric | 1            |
+| age_group_id | age group (22 for all ages)            | numeric | 22           |
+| val          | respiratory death rate                 | numerc  | 4.899945e-06 |
+
+The California counties boundary data can be downloaded using function `tigris::counties()`. Set the coordinate reference system to 4326 for future intersection with wildfire event points.
+```{r get counties data, message=F, results='hide', eval=T}
+counties_CA = counties(state='CA')
+counties_CA = st_transform(counties_CA, crs=4326)
+```
+The key attributes of the data are as follows.
+**need an attribute table here**
+
+
+
+
+
+
+
+
+Then, we need to integrate these data into a counties polygon data with wildfire and death rate data. For wildfire data, we firstly need to convert it into simple feature and then we can do intersection with counties data to get wildfire event counts in each polygon. Here I chosed wildfire events during 2016-2018 instead of just 2018 because I don't think impacts of wildfire on public health is short-term. Therefore I chosed 3 years of data.
+```{r add wildfire count, message=F, results='hide', eval=T}
+# get wildfire in the California bounding box and during year 2016-2018
+wildfire_selected = subset(wildfire_all,
+                           Y>32.5 & Y<42.1 & X>(-124.5) & X<(-114.1) & substring(FireDiscoveryDateTime,3,4) %in% c('16','17','18'))
+wildfire_selected= st_as_sf(wildfire_selected, coords=c('X','Y'),crs=4326)  # get sf wildfire points
+counties_CA$wildfire_count=lengths(st_intersects(counties_CA,wildfire_selected))  # count wildfire events on each polygon
+```
+
+For respiratory death data, we can firstly choose data from California and then join it to the counties data by FIP code. Noting previous attribute tables that the FIP codes in counties data are different in format from those in death rate data. So we need to do some processing.
+```{r join death rate data, message=F, results='hide',eval=T}
+# trim the data, choose data from CA and get only useful attributes
+resp18_CA = subset(resp18_all, substring(fips,1,1)=='6' & race_name=='Total' & age_group_id==22)
+# get FIP same in format to those of the death rate data
+counties_CA$FIP = as.integer(paste0(substring(counties_CA$STATEFP,2),counties_CA$COUNTYFP))
+# do the join
+counties_result = left_join(counties_CA,resp18_CA,by=c('FIP'='fips'))
+# make the number of death rate not too small
+counties_result$vale4 = counties_result$val*10e4
+```
+Now we have the data we want. We plot!
+```{r plot result}
+cal2plot=st_transform(counties_result,crs=3309)  # set projection to 3309 to get the correct scale
+mf_theme('default',pos='center')  # set the position of the title
+mf_map(x=cal2plot,type='choro',var='vale4',
+       breaks='jenks',nbreaks=5,
+       leg_title='Respiratory Death Rate\n(10e-4)', leg_title_cex=.7, leg_val_cex=.6, leg_val_rnd=0, leg_pos='topright')
+mf_map(x=cal2plot,type='prop',var='wildfire_count',
+       inches=0.22,
+       leg_title='Wildfire Count', leg_title_cex=.7, leg_val_cex=.6, leg_pos='right')
+mf_layout(title='Wildfires and Respiratory Deaths in California', 
+          credits=paste0('Sources: NIFC and IHME \nCartographer: Xiuyu Cao\nDate: Oct 11, 2023\n','mapsf ',packageVersion('mapsf')),
+          frame=F)
+```
 
 ## Select interested data
 
@@ -48,3 +133,5 @@ Here are some text that explan the result
 ## Possible Next Steps
 
 ## Data availability
+
+## References

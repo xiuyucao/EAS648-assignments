@@ -1,0 +1,50 @@
+# **This is header 1**
+## This is header 2
+This is a [link](https://github.com/xiuyucao) to my Github profile page
+This is a photo
+
+![](/Users/xycao/Downloads/fire.jpg.webp){width=40%}
+
+
+This is a `code block` 
+
+Give a blank row to change rows!
+
+## Introduction
+Here are some introductions about my final project
+## Fig1 --> Wildfire events in the whole United states **using tmap??**
+(read in data and plot first here and hide the codes, hereafter only show the codes but do no evaluation)
+
+## Code and comments
+Beginning here, I put all my codes and explanations, with figures to help explicitly explan
+
+The packages needed are as follows. First load all the packages **remember to comment the packages**
+```{r eval=F}
+library(sf)
+library(plotly)  # seems i didnt use this package
+library(tigris)
+library(dplyr)
+library(mapsf)
+library(usmap)
+```
+## read the data
+```{r eval=F}
+wildfire_all = read.csv('../data/lab1/wildfire.csv')  # all of the wildland fires in previous years in the US
+resp18_all = read.csv('../data/lab1/2018_RESP.csv')  # all of the respiratory death in the US in 2018
+```
+## glimpse of the data
+The meanings of the attributes are as follows **(create a table)**
+
+## Select interested data
+
+## Get California boundaries and combine the data
+
+## Draw the result
+
+Here are some text that explan the result
+
+## Why LA?
+
+## Possible Next Steps
+
+## Data availability

@@ -56,3 +56,6 @@ data/
 
 # images folder
 images/
+
+# html files
+*.html

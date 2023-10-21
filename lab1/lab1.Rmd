@@ -10,9 +10,9 @@ Run the following codes to import packages necessary in this project.
 ```{r import packages, message=F}
 library(sf)  # for working with spatial data
 library(tigris)  # for getting US census data
+library(ggplot2)  # for plotting maps
 library(mapsf)  # for plotting maps
 library(dplyr)  # for doing join
-library(ggplot2)  # for plotting maps
 ```
 
 ******************************************************
@@ -22,12 +22,10 @@ library(ggplot2)  # for plotting maps
 Firefighters walk past backfire while battling the Mosquito Fire in El Dorado County on Sept. 9, 2022. Photo by Noah Berger
 </center>
 <br>
-Wildfire occurs frequently around the United States. According to the data from [National Interagency Fire Center (NIFC)](https://data-nifc.opendata.arcgis.com), just in last year (2022), there have been 40,000 of wildfire events across the country, as is shown in the following map.
+Wildfires occur frequently around the United States. According to the data from [National Interagency Fire Center (NIFC)](https://data-nifc.opendata.arcgis.com), in just last year (2022), there were 40,000 of wildfire events across the country, as shown in the following map.
 ```{r read data and plot us wildfires, echo=F,eval=T}
-library(sf)
-library(ggplot2)
-wildfire_all = read.csv('../data/lab1/wildfire.csv')  # all of the wildland fires in previous years in the US
-resp18_all = read.csv('../data/lab1/2018_RESP.csv')  # all of the respiratory death in the US in 2018
+wildfire_all = read.csv('../data/lab1/wildfire.csv')
+resp18_all = read.csv('../data/lab1/2018_RESP.csv')
 wildfire_us = subset(wildfire_all, substring(FireDiscoveryDateTime,3,4)=='22')
 wildfire_us=st_as_sf(wildfire_us,coords=c('X','Y'),crs=4326)
 usa <- st_as_sf(maps::map("state", fill=TRUE, plot =FALSE))
@@ -40,13 +38,13 @@ ggplot()+
   xlim(-130,-60)+ylim(25,50)
 ```
 
-Each red point in the map represents a single wildfire event in 2022. As we can see, the west coast of the United States experience a higher frequency of wildfires. This is due to multiple reasons including the climate, vegetation kind, topography, etc. Apart from the extensive damage wildfires inflict on the ecosystem, the particles and gases they emit also raise concerns about public health.
+Each red point in the map represents a single wildfire event in 2022. As we can see, the west coast of the United States experiences a higher frequency of wildfires. This is due to multiple reasons including the climate, vegetation kind, topography, and more. Apart from the extensive damage wildfires inflict on the ecosystem, the particles and gases they emit also raise concerns about public health.
 
 In order to find out the impact of wildfires on public health, I analyzed the correlation between wildfire frequency and deaths caused by resiratory diseases in California. The method and result are as follows
 
 ******************************************************
 ## Method and Result
-The wildfire data is from [NIFC](https://data-nifc.opendata.arcgis.com). It contains all the wildfire events in the past 20 years in the United States.
+The wildfire data is from [NIFC](https://data-nifc.opendata.arcgis.com). It contains all the wildfire events in the past 20 years in the United States. After downloading the data from the website, read the data.
 ```{r eval=F}
 wildfire_all = read.csv('../data/lab1/wildfire.csv')  # read the downloaded wildfire data
 ```
@@ -58,7 +56,7 @@ The key attributes of the data are as follows.
 | Y                     | Latitude                         | numeric   | 22.80898               |
 | FireDiscoveryDateTime | Time When the Fire is Discovered | character | 2020/02/28 20:45:40+00 |
 
-The respiratory death rate data is from [the Institute for Health Metrics and Evaluation (IHME)](https://www.healthdata.org). From its data gateway, we can get the data of a specific year. In this study, to get rid of the impact of Covid 19, I used the data of 2018.
+The respiratory death rate data is from [the Institute for Health Metrics and Evaluation (IHME)](https://www.healthdata.org). Through its data gateway, we can get the data of a specific year. In this study, to get rid of the impact of Covid 19, I chose to use the data of 2018. Also, after downloading the data from the website, read the data.
 ```{r eval=F}
 resp18_all = read.csv('../data/lab1/2018_RESP.csv')  # read the downloaded respiratory death rate data
 ```
@@ -73,8 +71,8 @@ The key attributes of the data are as follows
 
 The California counties boundary data can be downloaded using function `tigris::counties()`. Set the coordinate reference system to 4326 for future intersection with wildfire event points.
 ```{r get counties data, message=F, results='hide', eval=T}
-counties_CA = counties(state='CA')
-counties_CA = st_transform(counties_CA, crs=4326)
+counties_CA = counties(state='CA')  # get counties data of CA (California)
+counties_CA = st_transform(counties_CA, crs=4326)  # set the coordinate reference system
 ```
 The key attributes of the data are as follows.
 
@@ -83,46 +81,52 @@ The key attributes of the data are as follows.
 |STATEFP       |FIP code of the state                   |character|06|
 |COUNTYFG      |FIP code of the county                  |character|091|
 
-Then, we need to integrate these data into a counties polygon data with wildfire and death rate data. For wildfire data, we firstly need to convert it into simple feature and then we can do intersection with counties data to get wildfire event counts in each polygon. Here I chosed wildfire events during 2016-2018 instead of just 2018 because I don't think impacts of wildfire on public health is short-term. Therefore I chosed 3 years of data.
+Then, we need to integrate these data into a counties polygon data with wildfire and death rate data. For wildfire data, we firstly need to convert it into simple feature and then we can do intersection with counties data to get wildfire event counts in each polygon. Here I chose wildfire events during 2016-2018 instead of just 2018 because I don't think impacts of wildfire on public health is short-term. Therefore I chose 3 years of data.
 ```{r add wildfire count, message=F, results='hide', eval=T}
 # get wildfire in the California bounding box and during year 2016-2018
 wildfire_selected = subset(wildfire_all, Y>32.5 & Y<42.1 & X>(-124.5) & X<(-114.1) & substring(FireDiscoveryDateTime,3,4) %in% c('16','17','18'))
-wildfire_selected= st_as_sf(wildfire_selected, coords=c('X','Y'),crs=4326)  # get sf wildfire points
-counties_CA$wildfire_count=lengths(st_intersects(counties_CA,wildfire_selected))  # count wildfire events on each polygon
+# convert the data into simple feature and set the coordinate reference system
+wildfire_selected= st_as_sf(wildfire_selected, coords=c('X','Y'),crs=4326)
+# do intersect and get wildfire counts in each polygon
+counties_CA$wildfire_count=lengths(st_intersects(counties_CA,wildfire_selected))
 ```
-
 
 For respiratory death data, we can firstly choose data from California and then join it to the counties data by FIP code. Noting previous attribute tables that the FIP codes in counties data are different in format from those in death rate data. So we need to do some processing.
 ```{r join death rate data, message=F, results='hide',eval=T}
-# trim the data, choose data from CA and get only useful attributes
+# trim the data: choose data from CA and get only useful attributes
 resp18_CA = subset(resp18_all, substring(fips,1,1)=='6' & race_name=='Total' & age_group_id==22)
 # get FIP same in format to those of the death rate data
 counties_CA$FIP = as.integer(paste0(substring(counties_CA$STATEFP,2),counties_CA$COUNTYFP))
-# do the join
+# do join
 counties_result = left_join(counties_CA,resp18_CA,by=c('FIP'='fips'))
-# make the number of death rate not too small
+# make the number of death rate not too small to be shown on future plot
 counties_result$vale4 = counties_result$val*10e4
 ```
-Now we have the data we want. We plot!
+Now we have the data we want. We can now plot using `mapsf` package.
 ```{r plot result, eval=T}
-cal2plot=st_transform(counties_result,crs=3309)  # set projection to 3309 to get the correct scale
-mf_theme('default',pos='center')  # set the position of the title
-mf_map(x=cal2plot,type='choro',var='vale4',
-       breaks='jenks',nbreaks=5,
-       leg_title='Respiratory Death Rate\n(10e-4)', leg_title_cex=.7, leg_val_cex=.6, leg_val_rnd=0, leg_pos='topright')
-mf_map(x=cal2plot,type='prop',var='wildfire_count',
-       inches=0.22,
-       leg_title='Wildfire Count', leg_title_cex=.7, leg_val_cex=.6, leg_pos='right')
-mf_layout(title='Wildfires and Respiratory Deaths in California', 
-          credits=paste0('Sources: NIFC and IHME \nCartographer: Xiuyu Cao\nDate: Oct 11, 2023\n','mapsf ',packageVersion('mapsf')),
-          frame=F)
+# set projection to 3309 to get the correct scale
+cal2plot=st_transform(counties_result,crs=3309)
+# set the position of the title
+mf_theme('default',pos='center')
+# plot death rate
+mf_map(x=cal2plot,type='choro',var='vale4',  # set map type to choropleth map
+       breaks='jenks',nbreaks=5,  # set classification strategy
+       leg_title='Respiratory Death Rate\n(10e-4)', leg_title_cex=.7, leg_val_cex=.6, leg_val_rnd=0, leg_pos='topright')  # legend
+# plot wildfire counts
+mf_map(x=cal2plot,type='prop',var='wildfire_count',  # set map type
+       inches=0.22,  # set icon size
+       leg_title='Wildfire Count', leg_title_cex=.7, leg_val_cex=.6, leg_pos='right')  # legend
+# set layout
+mf_layout(title='Wildfires and Respiratory Deaths in California',   # title
+          credits=paste0('Sources: NIFC and IHME \nCartographer: Xiuyu Cao\nDate: Oct 21, 2023\n','mapsf ',packageVersion('mapsf')),  # credits
+          frame=F)  # no frame
 ```
 
-As is shown in the map, generally, there is a correlation between wildfire occurrences and respiratory deaths. The more frequent wildfire happens, the more death by respiratory diseases will occur. Therefore, urgent action is required, whether in the form of wildfire mitigation efforts on the West Coast or an enhancement of public healthcare measures, to effectively combat respiratory diseases and deaths. 
+As shown in the map, generally, there is a correlation between wildfire occurrences and respiratory deaths. The more frequent wildfire happens, the more death by respiratory diseases will occur. Therefore, urgent action is required, whether in the form of wildfire mitigation efforts on the West Coast or an enhancement of public healthcare measures, to effectively combat respiratory diseases and deaths. 
 
 ******************************************************
 ## Discussion
-Although there is a positive correlation between wildfire frequency and respiratory death rate in most counties of California, there is an abnormal high frequency of wildfire and low respiratory deaths in Los Angeles. As is shown in the following chart, the wildfire counts in LA is far more than in other places.
+Although there is a positive correlation between wildfire frequency and respiratory death rate in most counties of California, there is an abnormally high frequency of wildfire and low respiratory deaths in Los Angeles. As is shown in the following chart, the wildfire counts in LA is far more than in other places.
 ```{r plot wildfire count bar chart in CA, eval=T}
 # plot wildfire frequency bar chart in CA
 counties_result %>%
@@ -133,15 +137,15 @@ counties_result %>%
   theme(axis.text.x = element_text(angle=90))  # set the rotation of X text to 90 degrees
 ```
 
-The combination of abnormal high frequency of wildfire and low respiratory deaths in Los Angeles may be caused by the following reasons.
+The combination of abnormally high frequency of wildfire and low respiratory deaths in Los Angeles may be caused by the following reasons.
 
 * problematic wildfire severity assessment method
 * different health care level among counties
-* different fire response time among counties
+* different fire response speed among counties
 * different fire event counting ability among counties
 * ...
 
-For example, our method of assessing wildfire severity is using counts. However, other aspects should also be taken into account. For example, duration, size, etc. As we can see from the wildfire perimeter data from [NIFC](https://data-nifc.opendata.arcgis.com), the sizes of wildfires in LA are much smaller than those in other regions. 
+For example, our method of assessing wildfire severity relies on counts. Nonetheless, other factors should also be taken into account, such as duration, size, etc. As we can see from the wildfire perimeter data from [NIFC](https://data-nifc.opendata.arcgis.com), the sizes of wildfires in LA are much smaller than those in other regions. 
 
 <center>
 ![](../images/firesize.png){width=75%}
@@ -151,9 +155,9 @@ For example, our method of assessing wildfire severity is using counts. However,
 Wildfire perimeter data from [NIFC](https://data-nifc.opendata.arcgis.com). Blue polygons are the sizes of wildfires in the past 8 years.
 </center>
 <br>
-Also, maybe Los Angeles is just more advanced in wildfire detection and recoding so that it has more wild fire counts thant outher places.
+Also, maybe Los Angeles is just more advanced in wildfire detection and recoding so that it has more wild fire counts than other places.
 
-For future study, we can improve our result by using a more rigorous and scientific variable that can assess the severity of wildfires in a region. The possibilities are as follows.
+For future studies, we can enhance our results by using a more rigorous and scientific variables to assess the wildfire severity in a region. Possibilities include:
 
 * Give different weights to different wildfire indexes (counts, size, duration, ...)
 * Use instrument variables (e.g. biomass loss) as proxies for wildfire severity

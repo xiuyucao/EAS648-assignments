@@ -10,7 +10,7 @@ Run the following codes to import packages necessary in this project.
 ```{r import packages, message=F}
 library(sf)  # for working with spatial data
 library(tigris)  # for getting US census data
-library(ggplot2)  # for plotting maps
+library(ggplot2)  # for plotting maps and charts
 library(mapsf)  # for plotting maps
 library(dplyr)  # for doing join
 ```
@@ -132,7 +132,7 @@ Although there is a positive correlation between wildfire frequency and respirat
 counties_result %>%
   ggplot(aes(x=NAME,y=wildfire_count))+  # set X and Y values
   geom_bar(stat='identity',fill='red')+  # set stat to show original count and fill color
-  labs(title='Wildfire Frequencies in Didfferent Counties in CA, 2016-2018',  # set title
+  labs(title='Wildfire Frequencies in Different Counties in CA, 2016-2018',  # set title
        x='County',y='Wildfire Frequency')+  # set X Y axes labels
   theme(axis.text.x = element_text(angle=90))  # set the rotation of X text to 90 degrees
 ```

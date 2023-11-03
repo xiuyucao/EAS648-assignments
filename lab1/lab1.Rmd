@@ -111,7 +111,7 @@ mf_theme('default',pos='center')
 # plot death rate
 mf_map(x=cal2plot,type='choro',var='vale4',  # set map type to choropleth map
        breaks='jenks',nbreaks=5,  # set classification strategy
-       leg_title='Respiratory Death Rate\n(10e-4)', leg_title_cex=.7, leg_val_cex=.6, leg_val_rnd=0, leg_pos='topright')  # legend
+       leg_title='Respiratory Death per 10,000 people', leg_title_cex=.7, leg_val_cex=.6, leg_val_rnd=0, leg_pos='topright')  # legend
 # plot wildfire counts
 mf_map(x=cal2plot,type='prop',var='wildfire_count',  # set map type
        inches=0.22,  # set icon size

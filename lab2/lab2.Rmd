@@ -16,78 +16,88 @@ library(terra)  # for working with raster data
 
 ******************************************************
 ## Get LiDAR data
-My LiDAR data used in this case is downloaded on [OpenTopography](https://opentopography.org). I want to study the trees in [Forest Hill Cemetery](https://foresthillcemeteryaa.org) in Ann Arbor. It looks like this in Google Map.
+My LiDAR data used in this case is downloaded on [OpenTopography](https://opentopography.org). I want to study the trees in [Forest Hill Cemetery](https://foresthillcemeteryaa.org) in Ann Arbor. This is a screenshot of my research area.
 
-<center>![](../images/FHC.jpg){width=50%}</center>
+![](../images/FHC.jpg){width=75%}
 
 ******************************************************
 ## Read and Select LiDAR Data
-Use the function `lidR::readLAS()` to Read the downloaded LiDAR data. It can be in the format of `*.las` or `*.laz`. I also set the flag `-keep_first` to leave only the first returned points to remove superfluous data at reading time and increase computation speed.
+Use the function `lidR::readLAS()` to Read the downloaded LiDAR data. It can be in the format of `*.las` or `*.laz`. I also set the flag `-keep_first` to leave only the first returned points so that the superfluous data will be removed at reading time and increase computation speed. We can use the `print()` function to check the basic information of our data.
 ```{r read LiDAR data}
-fhc_las <- readLAS('../data/lab2/points.laz', filter='-keep_first')
-print(fhc_las)
+fhc_las <- readLAS('../data/lab2/points.laz', filter='-keep_first')  # read LiDAR data
+print(fhc_las)  # print information
 ```
 
-Using the function `lidR::plot()`, we can plot the point clouds easily. To decide which attribute to plot, we can use the `View()` function.
+Using the function `lidR::plot()`, we can plot the point clouds easily. To decide which attribute to plot, we can use the `View()` function and check the attributes in the `data`.
 ```{r plot point clouds, eval=F}
-View(fhc_las)
-plot(fhc_las,color='Z',bg='white', axis=T)
+View(fhc_las)  # show the data table
+plot(fhc_las,color='Z',bg='white', axis=T)  # plot the 3D point clouds, set color by elevation
 ```
 ![](../images/FHC_pts.png){width=75%}
 
-
-In this plot, there are points within regions I am not intrested. So I will use the function `lidR::clip_rectangle()` to clip the point clouds. The function `range()` can be used to decide the range of the coordinates of the LiDAR data. For example, `range(fhc_las$X)``
+In this plot, there are points within regions I am not interested in. So I will use the function `lidR::clip_rectangle()` to clip the point clouds. The function `range()` can be used to decide the range of the coordinates of the LiDAR data. For example, `range(fhc_las$X)``
 
 When doing clip, it is good practice to include a buffer area to prevent error on the edge of the area in further analyses.
 ```{r clip the area of interest, echo=F, results='hide'}
 # calculate the original coordinates of the point cloud
-x_min <- range(fhc_las$X)[1]
-y_min <- range(fhc_las$Y)[1]
+x_min <- range(fhc_las$X)[1]  # get the origin of X coordinate
+y_min <- range(fhc_las$Y)[1]  # get the origin of Y coordinate
 # set the area of interest based on the plotted point cloud
-x_aoi <- c(100,400)
-y_aoi <- c(200, 450)
+x_aoi <- c(100, 400)  # X range of interest
+y_aoi <- c(200, 450)  # Y range of interest
 # clip the area of interest
 fhc_aoi <- clip_rectangle(fhc_las, x_min+x_aoi[1],y_min+y_aoi[1],x_min+x_aoi[2],y_min+y_aoi[2])
+# print the information of the point cloud
+print(fhc_aoi)
 ```
 
-```{r eval=F}
+```{r show clip code, eval=F}
 # calculate the original coordinates of the point cloud
-x_min <- range(fhc_las$X)[1]
-y_min <- range(fhc_las$Y)[1]
+x_min <- range(fhc_las$X)[1]  # get the origin of X coordinate
+y_min <- range(fhc_las$Y)[1]  # get the origin of Y coordinate
 # set the area of interest based on the plotted point cloud
-x_aoi <- c(100,400)
-y_aoi <- c(200, 450)
+x_aoi <- c(100, 400)  # X range of interest
+y_aoi <- c(200, 450)  # Y range of interest
 # clip the area of interest
 fhc_aoi <- clip_rectangle(fhc_las, x_min+x_aoi[1],y_min+y_aoi[1],x_min+x_aoi[2],y_min+y_aoi[2])
+# print the information of the point cloud
+print(fhc_aoi)
 # plot the point cloud
 plot(fhc_aoi,bg='white')
 ```
 ![](../images/FHC_aoi.png){width=75%}
 
+******************************************************
 ## Classification
 In order to further analyze the trees, classification of ground points is needed. If the original LiDAR data has not been classified, we need to classify the points manually. Common algorithms include [PMF](https://rdrr.io/cran/lidR/man/gnd_pmf.html), [CSF](https://rdrr.io/github/Jean-Romain/lidR/man/gnd_csf.html), and [MCC](https://rdrr.io/cran/lidR/man/gnd_mcc.html), which are included in the `lidR` package. Luckily, my downloaded LiDAR data has been classified. So there is no need to classify again.
 ```{r eval=F}
-plot(fhc_aoi,color='Classification',bg='white' )
+plot(fhc_aoi,color='Classification',bg='white' )  # plot the 3D point cloud, set color by class
 ```
 ![](../images/FHC_class.png){width=75%}
 
+As is shown in the plot, ground points have been correctly classified.
+
+******************************************************
 ## Get a Digital Terrain model
-Get a Digital Terrain Model is usually the second step in processing that follows classification of ground points. Common algorithms include [TIN](https://rdrr.io/cran/lidR/man/dtm_tin.html), [IDW](https://rdrr.io/cran/lidR/man/dtm_idw.html), and [Kriging](https://rdrr.io/cran/lidR/man/dtm_kriging.html). Kriging is the slowest but can get a better DTM. Since my data volumn is not so huge, I will use Kriging to generate a DTM.
+Get a Digital Terrain Model is usually the second step in processing that follows classification of ground points. Common algorithms include [TIN](https://rdrr.io/cran/lidR/man/dtm_tin.html), [IDW](https://rdrr.io/cran/lidR/man/dtm_idw.html), and [Kriging](https://rdrr.io/cran/lidR/man/dtm_kriging.html). Kriging is the slowest but can get a better DTM. Since my data volume is not so huge, I can use Kriging to generate a DTM.
 
 To generate a DTM model with the kriging algorithm we use `lidR::rasterize_terrain()` where `algorithm = kriging()`
 ```{r get DTM and plot shaded DTM}
-dtm_kriging<-rasterize_terrain(fhc_aoi, algorithm=kriging(k=20))
-dtm_prod <- terrain(dtm_kriging, v = c("slope", "aspect"), unit = "radians")
-dtm_hillshade <- shade(slope = dtm_prod$slope, aspect = dtm_prod$aspect)
-plot(dtm_hillshade, col =gray(0:30/30), legend =F)
+dtm_kriging <- rasterize_terrain(fhc_aoi, algorithm=kriging(k=20))  # get DTM
+dtm_prod <- terrain(dtm_kriging, v = c("slope", "aspect"), unit = "radians")  # get terrain characteristics
+dtm_hillshade <- shade(slope = dtm_prod$slope, aspect = dtm_prod$aspect)  # compute hill shade
+plot(dtm_hillshade, col =gray(0:30/30), legend =T, main='Digital Terrain Model (m)')  # plot shaded DTM
 ```
 
 The DTM can also be plotted 3d, using the function `lidR::plot_dtm3d()`.
 
+******************************************************
 ## Height Normalization
-In order to get a Canopy Height Model (CHM) instead of a Digital Surface Model (DSM), we need to do the height normalization first, so that the derived surface will be representing the relative canopy height instead of the absolute elevations. Height normalization removes the influence of terrain on above ground measurements. This can be realized either by point cloud based (use the point cloud) or raster based (use the DTM) method. The point cloud based is more accurate since DTM is a discretized raster and the locations of the pixels do not always match the locations of the ground points. Therefore the result groud points will always be Z=0 using the point cloud based method. This method is however computationally intensive. 
+In order to get a Canopy Height Model (CHM) instead of a Digital Surface Model (DSM), we need to do the height normalization first, so that the derived surface will be representing the relative canopy height instead of the absolute elevations. 
 
-Since my data is not so huge, I will use the point cloud based method.
+Height normalization removes the influence of terrain on above ground measurements. This can be realized either by point cloud based (use the point cloud) or raster based (use the DTM) method. The point cloud based is more accurate since DTM is a discretized raster and the locations of the pixels do not always match the locations of the ground points. Therefore the result ground points will always be Z=0 using the point cloud based method. This method is however computationally intensive. 
+
+Since my data volume is not so huge, I will use the point cloud based method.
 ```{r height normalization}
 # do height normalization
 nlas <- normalize_height(fhc_aoi, kriging())
@@ -96,29 +106,41 @@ hist(filter_ground(nlas)$Z, breaks=seq(-0.5,0.5,0.01),
      main='Ground Points Height Distribution', xlab='Ground Point Height (m)')
 ```
 
-As shown in the histogram, the ground points of my LiDAR data have been normalized to zero.
+As shown in the histogram, all of the ground points of my LiDAR data have been normalized to zero.
 
+******************************************************
 ## Canopy Height Model
-The `rasterize_canopy()` function uses the 'local maximum' or the highest points. The 'pit-free' algorithm can be used to develop the CHM. It avoids the empty pixels in the result CHM raster if the grid resolution is set too small when developing the CHM.
+The `rasterize_canopy()` function uses the 'local maximum' or the highest points. The '[pit-free](https://www.ingentaconnect.com/content/asprs/pers/2014/00000080/00000009/art00003?crawler=true)' algorithm can be used to develop the CHM. It avoids the empty pixels in the result CHM raster if the grid resolution is set too small when developing the CHM.
 ```{r get CHM}
-# ----------------------- What do these parameters mean? 
-# ----------------------- threshods --> height thresholds, max_edge --> max edge of the triangulars
-chm <- rasterize_canopy(nlas, res = 0.5, pitfree(thresholds = c(0, 5, 10, 15, 20), max_edge = c(0, 1)))
-plot(chm,col=height.colors(25),main='this is a title')
-```
-## Individual Tree Detection and Segmentation
-First we do individual tree detection. The simplest way is to use a fix-sized window to detect the highest point on the CHM. For my scenerio, using a window of 15m can reach a good effect.
-```{r tree detection using fix-sized window, eval=F}
-# tree detection using a fixed window size
-ttops <- locate_trees(nlas, lmf(ws = 5))  # using the 15m window can get a good effect on deciduous forest
-plot(chm, col = height.colors(50))
-plot(sf::st_geometry(ttops), add = TRUE, pch = 3)
-# add tree tops 3d
-x <- plot(nlas,bg='white',size=4)
-add_treetops3d(x,ttops)
+# get CHM
+chm <- rasterize_canopy(nlas, res = 0.5, 
+                        pitfree(thresholds = c(0, 5, 10, 15, 20),  # height thresholds
+                                max_edge = c(0, 1)))  # max edge length of a triangle in the Delaunay triangulation
+# plot CHM
+plot(chm,col=height.colors(25),main='Canopy Height Model (m)')
 ```
 
-While the sizes of tree canopy can vary based on the ages of trees, it is better to use a variable size window to detect individual trees.
+******************************************************
+## Individual Tree Detection and Segmentation
+Now we have got the CHM, we can deploy individual tree detection based on that. The simplest way is to use a fix-sized window to detect the highest point on the CHM.
+
+Here I use the function `lidR::locate_trees()`, where the window size `ws` is 10 meters. This means I think the radius of the tree canopy within my area is close to 5m.
+```{r tree detection using fix-sized window (code to show), eval=F}
+ttops <- locate_trees(nlas, lmf(ws = 10))  # tree detection using a fixed window size
+plot(chm, col = height.colors(50))  # plot CHM
+plot(sf::st_geometry(ttops), add = TRUE, pch = 3)  # add tree centers to the CHM
+x <- plot(nlas,bg='white',size=4)  # plot point cloud
+add_treetops3d(x,ttops)  # add tree tops 3d
+```
+
+```{r tree detection using fix-sized window, echo=F}
+ttops <- locate_trees(nlas, lmf(ws = 10))  # tree detection using a fixed window size
+plot(chm, col = height.colors(50))  # plot CHM
+plot(sf::st_geometry(ttops), add = TRUE, pch = 3)  # add tree centers to the CHM
+```
+![](../images/tree_fixed.png){width=75%}
+
+While the sizes of tree canopy can vary based on the ages of trees, it is better to use a variable size window to detect individual trees. Here I developed a simple linear relationship. If it is for research purposes, a more sophisticated model is needed.
 ```{r define a window size function}
 # define a window size function
 f <- function(x) {
@@ -130,31 +152,35 @@ f <- function(x) {
 # plot the function
 heights <- seq(-5, 30, 0.5)
 ws <- f(heights)
-plot(heights, ws, type='l', ylim=c(0,20))
-
-ttops <- locate_trees(nlas,lmf(f))
-plot(chm,col=height.colors(50))
-plot(sf::st_geometry(ttops),add=T,pch=3)
-
-x <- plot(nlas,bg='white',size=4)
-add_treetops3d(x,ttops)
+plot(heights, ws, type='l', ylim=c(0,12),
+     xlab='Tree Height (m)', ylab='Diameter (m)',
+     main='Relationship between Tree Heights and Diameter')
 ```
 
-In order to derive tree metrics for further analyses, we need the point cloud data to include tree segmentation information (e.g. usually the `treeID` attribute). Here I use the algorithm [silva2016](https://www.rdocumentation.org/packages/lidR/versions/2.2.4/topics/silva2016) to segement trees because it can get the best result on my data. To use other algorithms, do `?segment_trees` to check the document.
+```{r get tree tops variable ws}
+ttops <- locate_trees(nlas,lmf(f))  # get tree tops
+plot(chm,col=height.colors(50))  # plot CHM
+plot(sf::st_geometry(ttops),add=T,pch=3)  # plot tree tops
+# x <- plot(nlas,bg='white',size=4)  # plot point cloud
+# add_treetops3d(x,ttops)  # plot tree tops
+```
+
+In order to derive tree metrics for further analyses, we need the point cloud data to include tree segmentation information (e.g. usually the `treeID` attribute). Here I use the algorithm [silva2016](https://www.rdocumentation.org/packages/lidR/versions/2.2.4/topics/silva2016) to segment trees because it can get the best result on my data. To use other algorithms, do `?segment_trees` to check the document.
 ```{r tree segmentation}
-# segmentation
-algo <- silva2016(chm,treetops=ttops)
-las_seg = segment_trees(nlas,algo)
-
-plot(las_seg,bg='white',color='treeID')
-
-crowns <- crown_metrics(las_seg, func = .stdtreemetrics, geom = "convex")
-plot(crowns["convhull_area"], main = "Crown area (convex hull)")
+algo <- silva2016(chm,treetops=ttops)  # set algorithm
+las_seg = segment_trees(nlas,algo)  # deploy tree segmentation
+# plot(las_seg,bg='white',color='treeID')  # plot point cloud, set color by tree segmentation result
 ```
 
+******************************************************
 ## Derive Tree Metrics
 Analyses of point cloud data are often based on metrics calculations. Metrics are scalar summaries of point distributions that can be computed using varying neighborhood definitions and varying reference locations. The notion of metrics is at the core of the `lidR` package, which enables the computation of standard or custom user-defined metrics at varying levels of regularization.
 ```{r get tree metrics}
+crowns <- crown_metrics(las_seg, 
+                        func = .stdtreemetrics,  # use the pre-defined tree metrics
+                        geom = "convex")  # set the crowns' shape
+head(crowns)
+plot(crowns["convhull_area"], main = "Crown area (convex hull)")  # plot tree segmentation result
 metrics <- crown_metrics(las_seg, ~list(z_max = max(Z), z_mean = mean(Z)),geom='concave')
 head(metrics)
 ```
@@ -162,6 +188,33 @@ head(metrics)
 ```{r plot metrics}
 plot(metrics['z_max'],pal=hcl.colors,pch=19)
 ```
-## Applications
 
+******************************************************
+## Applications
+Using the tree metrics, we can select the trees and do tree based inventory. One interesting [application](https://www.sciencedirect.com/science/article/pii/S0034425723003711?casa_token=JhtyRO16F9cAAAAA:9kyyjwLegDiCe0d0-KCMeDeiZ954qH27Z3BbVqgCu5x3aThWzsFkxK-topS5hx5QJ2X24tcAIA) 
+I recently read is using the tree metrics to get microclimate from macrocliamte, since trees have a cooling effect.
+
+For example, I have a land surface temperature raster data which can be computed from Landsat imagery. Here I generate a raster data from CHM to represent the temprature data which can be calculated from Landsat imagery.
+```{r}
+temp=setValues(chm,20)
+```
+Then, calculate the metrics.
+```{r}
+library(tidyr)
+ce_m <- crown_metrics(las_seg, ~list(zmax=max(Z), imean=mean(Intensity)))
+ce_m$cooling_effect <- 0.7*ce_m$zmax + 0.1*ce_m$imean
+r <- rast(ext(las_seg),resolution=10)
+v <- vect(ce_m["cooling_effect"])
+map <- terra::rasterize(v, r, field = "cooling_effect", fun = mean) # extract sum of G at 15m
+plot(map, col = hcl.colors(15)) # some plotting
+
+test <- resample(chm,map,method='bilinear')
+plot(test)
+
+map[is.na(map[])] <- 1500
+plot(map)
+plot(test*map)
+```
+
+Finally ,calculate the microlimate based on the relationship.
 

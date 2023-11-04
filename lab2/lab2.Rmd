@@ -6,6 +6,10 @@ output: html_document
 ---
 
 ******************************************************
+## Introduction
+Here I developed a research methodology using LiDAR data to analyze trees and provided an example of using tree metrics to derive microclimatic from macroclimatic data, showing the potential of LiDAR data in ecological studies.
+
+******************************************************
 ## Needed Packages
 Run the following codes to import packages necessary in this project.
 ```{r import packages, message=F}
@@ -37,7 +41,7 @@ plot(fhc_las,color='Z',bg='white', axis=T)  # plot the 3D point clouds, set colo
 
 In this plot, there are points within regions I am not interested in. So I will use the function `lidR::clip_rectangle()` to clip the point clouds. The function `range()` can be used to decide the range of the coordinates of the LiDAR data.
 
-When doing clip, it is good practice to include a buffer area to prevent error on the edge of the area in further analyses.
+When doing a clip, it is good practice to include a buffer area to prevent error on the edge of the area in further analyses.
 ```{r clip the area of interest}
 # calculate the original coordinates of the point cloud
 x_min <- range(fhc_las$X)[1]  # get the origin of X coordinate
@@ -90,7 +94,7 @@ The DTM can also be plotted 3d, using the function `lidR::plot_dtm3d()`.
 ## Height Normalization
 In order to get a Canopy Height Model (CHM) instead of a Digital Surface Model (DSM), we need to do the height normalization first, so that the derived surface will be representing the relative canopy height instead of the absolute elevations. 
 
-Height normalization removes the influence of terrain on above ground measurements. This can be realized either by point cloud based (use the point cloud) or raster based (use the DTM) method. The point cloud based is more accurate since DTM is a discretized raster and the locations of the pixels do not always match the locations of the ground points. Therefore the result ground points will always be Z=0 using the point cloud based method. This method is however computationally intensive. 
+Height normalization removes the influence of terrain on above ground measurements. This can be realized either by point cloud based (use the point cloud) or raster based (use the DTM) method. The point cloud based is more accurate since DTM is a discretized raster and the locations of the pixels do not always match the locations of the ground points. Therefore the result ground points will always be $Z=0$ using the point cloud based method. This method is however computationally intensive. 
 
 Since my data volume is not so huge, I will use the point cloud based method.
 ```{r height normalization}
@@ -162,7 +166,7 @@ add_treetops3d(x,ttops)  # plot tree tops
 ```
 ![](../images/tree_vary.png){width=75%}
 
-In order to derive tree metrics for further analyses, we need the point cloud data to include tree segmentation information (e.g. usually the `treeID` attribute). Here I use the algorithm [silva2016](https://www.rdocumentation.org/packages/lidR/versions/2.2.4/topics/silva2016) to segment trees because it can get the best result on my data. To use other algorithms, do `?segment_trees` to check the document.
+In order to derive tree metrics for further analyses, we need the point cloud data to include tree segmentation information. Here I use the algorithm [silva2016](https://www.rdocumentation.org/packages/lidR/versions/2.2.4/topics/silva2016) to segment trees because it can get the best result on my data. To use other algorithms, do `?segment_trees` to check the document.
 ```{r tree segmentation}
 algo <- silva2016(chm,treetops=ttops)  # set algorithm
 las_seg = segment_trees(nlas,algo)  # deploy tree segmentation
@@ -172,33 +176,29 @@ las_seg = segment_trees(nlas,algo)  # deploy tree segmentation
 plot(las_seg,bg='white',color='treeID')  # plot point cloud, set color by tree segmentation result
 ```
 ![](../images/tree_seg.png){width=75%}
+
 ******************************************************
 ## Derive Tree Metrics
 Analyses of point cloud data are often based on metrics calculations. Metrics are scalar summaries of point distributions that can be computed using varying neighborhood definitions and varying reference locations. The notion of metrics is at the core of the `lidR` package, which enables the computation of standard or custom user-defined metrics at varying levels of regularization.
 ```{r get tree metrics}
-# get tree metrics using the pre-defined tree metrics
-crowns <- crown_metrics(las_seg, 
-                        func = .stdtreemetrics,  # use the pre-defined tree metrics
-                        geom = "convex")  # set the crowns' shape
-head(crowns)
-plot(crowns["convhull_area"], main = "Crown Area")  # plot tree segmentation result
-# get tree metrics using other R functions
-metrics <- crown_metrics(las_seg, ~list(z_max = max(Z), z_mean = mean(Z)),geom='concave')
+# get tree metrics
+metrics <- crown_metrics(las_seg,
+                         ~list(z_max = max(Z), z_mean = mean(Z)),  # set function
+                         geom='concave')  # set the crowns' shape
 head(metrics)
-plot(metrics['z_max'],pal=hcl.colors,pch=19)
+plot(metrics['z_max'],pal=hcl.colors,pch=19,main='Tree Height Map (m)')
 ```
-
 
 ******************************************************
 ## Applications
-Using the tree metrics, we can select the trees or do tree based inventory. One interesting [application](https://www.sciencedirect.com/science/article/pii/S0034425723003711?casa_token=JhtyRO16F9cAAAAA:9kyyjwLegDiCe0d0-KCMeDeiZ954qH27Z3BbVqgCu5x3aThWzsFkxK-topS5hx5QJ2X24tcAIA) 
-I recently read is using the tree metrics to get microclimate from macrocliamte, since trees have an effect on meterology indexes like temperature.
+Using the tree metrics, we can do a lot of things including selecting the trees or doing tree based inventory. One interesting [application](https://www.sciencedirect.com/science/article/pii/S0034425723003711?casa_token=JhtyRO16F9cAAAAA:9kyyjwLegDiCe0d0-KCMeDeiZ954qH27Z3BbVqgCu5x3aThWzsFkxK-topS5hx5QJ2X24tcAIA) 
+I recently read is using the tree metrics to derive microclimate from macrocliamte, since trees have an effect on meterology indexes like temperature.
 
 For example, I have a land surface temperature raster data which can be computed from Landsat imagery. Here I generate a raster data from CHM to represent the temperature data which can be calculated from Landsat imagery. Everywhere in my study area is assigned 35 degree Celsius.
 ```{r}
 temp=setValues(chm,35)  # 35 degrees Celsius
 ```
-Let's say the trees have a buffering effect on temperature, and it is decided by the height and intensity of the cloud points. And the relationship is
+Let's say the trees have a buffering effect on temperature, and it is decided by the height and intensity of the cloud points with a relationship:
 
 <center>$CE=0.01 \times Z_{max} + 0.0002 \times I_{mean}$</center>
 

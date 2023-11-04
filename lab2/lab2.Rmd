@@ -1,5 +1,5 @@
 ---
-title: "Working with LiDAR Data"
+title: "LiDAR and Trees"
 author: "[Xiuyu Cao](https://github.com/xiuyucao)"
 date: "Oct 31, 2023"
 output: html_document
@@ -16,14 +16,14 @@ library(terra)  # for working with raster data
 
 ******************************************************
 ## Get LiDAR data
-My LiDAR data used in this case is downloaded on [OpenTopography](https://opentopography.org). I want to study the trees in [Forest Hill Cemetery](https://foresthillcemeteryaa.org) in Ann Arbor. This is a screenshot of my research area.
+My LiDAR data used in this case is downloaded on [OpenTopography](https://opentopography.org). I want to study the trees in [Forest Hill Cemetery](https://foresthillcemeteryaa.org) in Ann Arbor. This is a screenshot from [Google Earth](https://earth.google.com/) of my research area.
 
 ![](../images/FHC.jpg){width=75%}
 
 ******************************************************
 ## Read and Select LiDAR Data
 Use the function `lidR::readLAS()` to Read the downloaded LiDAR data. It can be in the format of `*.las` or `*.laz`. I also set the flag `-keep_first` to leave only the first returned points so that the superfluous data will be removed at reading time and increase computation speed. We can use the `print()` function to check the basic information of our data.
-```{r read LiDAR data}
+```{r read LiDAR data, warning=F}
 fhc_las <- readLAS('../data/lab2/points.laz', filter='-keep_first')  # read LiDAR data
 print(fhc_las)  # print information
 ```
@@ -35,10 +35,10 @@ plot(fhc_las,color='Z',bg='white', axis=T)  # plot the 3D point clouds, set colo
 ```
 ![](../images/FHC_pts.png){width=75%}
 
-In this plot, there are points within regions I am not interested in. So I will use the function `lidR::clip_rectangle()` to clip the point clouds. The function `range()` can be used to decide the range of the coordinates of the LiDAR data. For example, `range(fhc_las$X)``
+In this plot, there are points within regions I am not interested in. So I will use the function `lidR::clip_rectangle()` to clip the point clouds. The function `range()` can be used to decide the range of the coordinates of the LiDAR data.
 
 When doing clip, it is good practice to include a buffer area to prevent error on the edge of the area in further analyses.
-```{r clip the area of interest, echo=F, results='hide'}
+```{r clip the area of interest}
 # calculate the original coordinates of the point cloud
 x_min <- range(fhc_las$X)[1]  # get the origin of X coordinate
 y_min <- range(fhc_las$Y)[1]  # get the origin of Y coordinate
@@ -51,20 +51,10 @@ fhc_aoi <- clip_rectangle(fhc_las, x_min+x_aoi[1],y_min+y_aoi[1],x_min+x_aoi[2],
 print(fhc_aoi)
 ```
 
-```{r show clip code, eval=F}
-# calculate the original coordinates of the point cloud
-x_min <- range(fhc_las$X)[1]  # get the origin of X coordinate
-y_min <- range(fhc_las$Y)[1]  # get the origin of Y coordinate
-# set the area of interest based on the plotted point cloud
-x_aoi <- c(100, 400)  # X range of interest
-y_aoi <- c(200, 450)  # Y range of interest
-# clip the area of interest
-fhc_aoi <- clip_rectangle(fhc_las, x_min+x_aoi[1],y_min+y_aoi[1],x_min+x_aoi[2],y_min+y_aoi[2])
-# print the information of the point cloud
-print(fhc_aoi)
-# plot the point cloud
-plot(fhc_aoi,bg='white')
+```{r, eval=F}
+plot(fhc_aoi,bg='white') # plot the point cloud
 ```
+
 ![](../images/FHC_aoi.png){width=75%}
 
 ******************************************************
@@ -75,7 +65,7 @@ plot(fhc_aoi,color='Classification',bg='white' )  # plot the 3D point cloud, set
 ```
 ![](../images/FHC_class.png){width=75%}
 
-As is shown in the plot, ground points have been correctly classified.
+As shown in the plot, ground points have been correctly classified.
 
 ******************************************************
 ## Get a Digital Terrain model
@@ -83,10 +73,15 @@ Get a Digital Terrain Model is usually the second step in processing that follow
 
 To generate a DTM model with the kriging algorithm we use `lidR::rasterize_terrain()` where `algorithm = kriging()`
 ```{r get DTM and plot shaded DTM}
-dtm_kriging <- rasterize_terrain(fhc_aoi, algorithm=kriging(k=20))  # get DTM
-dtm_prod <- terrain(dtm_kriging, v = c("slope", "aspect"), unit = "radians")  # get terrain characteristics
-dtm_hillshade <- shade(slope = dtm_prod$slope, aspect = dtm_prod$aspect)  # compute hill shade
-plot(dtm_hillshade, col =gray(0:30/30), legend =T, main='Digital Terrain Model (m)')  # plot shaded DTM
+# get DTM
+dtm_kriging <- rasterize_terrain(fhc_aoi, algorithm=kriging(k=20))
+# get terrain characteristics for generating a shaded model
+dtm_prod <- terrain(dtm_kriging, v = c("slope", "aspect"), unit = "radians")
+# compute hill shade
+dtm_hillshade <- shade(slope = dtm_prod$slope, aspect = dtm_prod$aspect)
+# plot shaded DTM
+plot(dtm_hillshade, col =gray(0:30/30), 
+     legend =F, xlab='X (m)', ylab='Y (m)', main='Shaded Digital Terrain Model')
 ```
 
 The DTM can also be plotted 3d, using the function `lidR::plot_dtm3d()`.
@@ -110,14 +105,15 @@ As shown in the histogram, all of the ground points of my LiDAR data have been n
 
 ******************************************************
 ## Canopy Height Model
-The `rasterize_canopy()` function uses the 'local maximum' or the highest points. The '[pit-free](https://www.ingentaconnect.com/content/asprs/pers/2014/00000080/00000009/art00003?crawler=true)' algorithm can be used to develop the CHM. It avoids the empty pixels in the result CHM raster if the grid resolution is set too small when developing the CHM.
+The `rasterize_canopy()` function uses the 'local maximum' or the highest points. The "[pit-free](https://www.ingentaconnect.com/content/asprs/pers/2014/00000080/00000009/art00003?crawler=true)" algorithm can be used to develop the CHM. It avoids the empty pixels in the result CHM raster if the grid resolution is set too small when developing the CHM.
 ```{r get CHM}
 # get CHM
 chm <- rasterize_canopy(nlas, res = 0.5, 
                         pitfree(thresholds = c(0, 5, 10, 15, 20),  # height thresholds
-                                max_edge = c(0, 1)))  # max edge length of a triangle in the Delaunay triangulation
+                                max_edge = c(0, 1)))  # max edge length of the triangles
 # plot CHM
-plot(chm,col=height.colors(25),main='Canopy Height Model (m)')
+plot(chm,col=height.colors(25),
+     xlab='X (m)', ylab='Y (m)', main='Canopy Height Model (m)')
 ```
 
 ******************************************************
@@ -125,22 +121,19 @@ plot(chm,col=height.colors(25),main='Canopy Height Model (m)')
 Now we have got the CHM, we can deploy individual tree detection based on that. The simplest way is to use a fix-sized window to detect the highest point on the CHM.
 
 Here I use the function `lidR::locate_trees()`, where the window size `ws` is 10 meters. This means I think the radius of the tree canopy within my area is close to 5m.
-```{r tree detection using fix-sized window (code to show), eval=F}
+```{r tree detection using fix-sized window}
 ttops <- locate_trees(nlas, lmf(ws = 10))  # tree detection using a fixed window size
 plot(chm, col = height.colors(50))  # plot CHM
 plot(sf::st_geometry(ttops), add = TRUE, pch = 3)  # add tree centers to the CHM
+```
+
+```{r eval=F}
 x <- plot(nlas,bg='white',size=4)  # plot point cloud
 add_treetops3d(x,ttops)  # add tree tops 3d
 ```
-
-```{r tree detection using fix-sized window, echo=F}
-ttops <- locate_trees(nlas, lmf(ws = 10))  # tree detection using a fixed window size
-plot(chm, col = height.colors(50))  # plot CHM
-plot(sf::st_geometry(ttops), add = TRUE, pch = 3)  # add tree centers to the CHM
-```
 ![](../images/tree_fixed.png){width=75%}
 
-While the sizes of tree canopy can vary based on the ages of trees, it is better to use a variable size window to detect individual trees. Here I developed a simple linear relationship. If it is for research purposes, a more sophisticated model is needed.
+While the sizes of tree canopy can vary based on the ages of trees, it is better to use a variable size window to detect individual trees. Here I developed a simple linear relationship. For research purposes, a more sophisticated model is needed.
 ```{r define a window size function}
 # define a window size function
 f <- function(x) {
@@ -161,60 +154,79 @@ plot(heights, ws, type='l', ylim=c(0,12),
 ttops <- locate_trees(nlas,lmf(f))  # get tree tops
 plot(chm,col=height.colors(50))  # plot CHM
 plot(sf::st_geometry(ttops),add=T,pch=3)  # plot tree tops
-# x <- plot(nlas,bg='white',size=4)  # plot point cloud
-# add_treetops3d(x,ttops)  # plot tree tops
 ```
+
+```{r eval=F}
+x <- plot(nlas,bg='white',size=4)  # plot point cloud
+add_treetops3d(x,ttops)  # plot tree tops
+```
+![](../images/tree_vary.png){width=75%}
 
 In order to derive tree metrics for further analyses, we need the point cloud data to include tree segmentation information (e.g. usually the `treeID` attribute). Here I use the algorithm [silva2016](https://www.rdocumentation.org/packages/lidR/versions/2.2.4/topics/silva2016) to segment trees because it can get the best result on my data. To use other algorithms, do `?segment_trees` to check the document.
 ```{r tree segmentation}
 algo <- silva2016(chm,treetops=ttops)  # set algorithm
 las_seg = segment_trees(nlas,algo)  # deploy tree segmentation
-# plot(las_seg,bg='white',color='treeID')  # plot point cloud, set color by tree segmentation result
 ```
 
+```{r,eval=F}
+plot(las_seg,bg='white',color='treeID')  # plot point cloud, set color by tree segmentation result
+```
+![](../images/tree_seg.png){width=75%}
 ******************************************************
 ## Derive Tree Metrics
 Analyses of point cloud data are often based on metrics calculations. Metrics are scalar summaries of point distributions that can be computed using varying neighborhood definitions and varying reference locations. The notion of metrics is at the core of the `lidR` package, which enables the computation of standard or custom user-defined metrics at varying levels of regularization.
 ```{r get tree metrics}
+# get tree metrics using the pre-defined tree metrics
 crowns <- crown_metrics(las_seg, 
                         func = .stdtreemetrics,  # use the pre-defined tree metrics
                         geom = "convex")  # set the crowns' shape
 head(crowns)
-plot(crowns["convhull_area"], main = "Crown area (convex hull)")  # plot tree segmentation result
+plot(crowns["convhull_area"], main = "Crown Area")  # plot tree segmentation result
+# get tree metrics using other R functions
 metrics <- crown_metrics(las_seg, ~list(z_max = max(Z), z_mean = mean(Z)),geom='concave')
 head(metrics)
-```
-
-```{r plot metrics}
 plot(metrics['z_max'],pal=hcl.colors,pch=19)
 ```
 
+
 ******************************************************
 ## Applications
-Using the tree metrics, we can select the trees and do tree based inventory. One interesting [application](https://www.sciencedirect.com/science/article/pii/S0034425723003711?casa_token=JhtyRO16F9cAAAAA:9kyyjwLegDiCe0d0-KCMeDeiZ954qH27Z3BbVqgCu5x3aThWzsFkxK-topS5hx5QJ2X24tcAIA) 
-I recently read is using the tree metrics to get microclimate from macrocliamte, since trees have a cooling effect.
+Using the tree metrics, we can select the trees or do tree based inventory. One interesting [application](https://www.sciencedirect.com/science/article/pii/S0034425723003711?casa_token=JhtyRO16F9cAAAAA:9kyyjwLegDiCe0d0-KCMeDeiZ954qH27Z3BbVqgCu5x3aThWzsFkxK-topS5hx5QJ2X24tcAIA) 
+I recently read is using the tree metrics to get microclimate from macrocliamte, since trees have an effect on meterology indexes like temperature.
 
-For example, I have a land surface temperature raster data which can be computed from Landsat imagery. Here I generate a raster data from CHM to represent the temprature data which can be calculated from Landsat imagery.
+For example, I have a land surface temperature raster data which can be computed from Landsat imagery. Here I generate a raster data from CHM to represent the temperature data which can be calculated from Landsat imagery. Everywhere in my study area is assigned 35 degree Celsius.
 ```{r}
-temp=setValues(chm,20)
+temp=setValues(chm,35)  # 35 degrees Celsius
 ```
-Then, calculate the metrics.
-```{r}
-library(tidyr)
-ce_m <- crown_metrics(las_seg, ~list(zmax=max(Z), imean=mean(Intensity)))
-ce_m$cooling_effect <- 0.7*ce_m$zmax + 0.1*ce_m$imean
+Let's say the trees have a buffering effect on temperature, and it is decided by the height and intensity of the cloud points. And the relationship is
+
+<center>$CE=0.01 \times Z_{max} + 0.0002 \times I_{mean}$</center>
+
+Where $CE$ stands for the cooling effect in degrees Celsius (how many degrees Celsius the temperature will decrease), $Z_{max}$ is the max height of a tree point cloud, and $I_{mean}$ is the mean intensity of the tree point cloud.
+```{r get cooling effect}
+ce_metrics <- crown_metrics(las_seg, ~list(zmax=max(Z), imean=mean(Intensity)))  # get tree metrics
+ce_metrics$cooling_effect <- 0.01*ce_metrics$zmax + 0.0002*ce_metrics$imean  # get cooling effect index
+# rasterize the cooling effect map
 r <- rast(ext(las_seg),resolution=10)
-v <- vect(ce_m["cooling_effect"])
-map <- terra::rasterize(v, r, field = "cooling_effect", fun = mean) # extract sum of G at 15m
-plot(map, col = hcl.colors(15)) # some plotting
-
-test <- resample(chm,map,method='bilinear')
-plot(test)
-
-map[is.na(map[])] <- 1500
-plot(map)
-plot(test*map)
+v <- vect(ce_metrics["cooling_effect"])
+ce_map <- terra::rasterize(v, r, field = "cooling_effect", fun = mean)
+# replace the NA cells with 0
+ce_map[is.na(ce_map[])] <- 0
+# set the map Coordinate System
+crs(ce_map) <- crs(temp)
+# plot the cooling effect map
+plot(ce_map, col = hcl.colors(15),
+     xlab='X (m)',ylab='Y (m)',main='Cooling Effect (degrees Celsius)') # plot the cooling effect map
 ```
 
-Finally ,calculate the microlimate based on the relationship.
+Then we can do the raster computation and get the microclimate.
+```{r get microclimate}
+# resample the temperature map to the same resolution of the cooling effect map
+temp <- resample(temp,ce_map,method='bilinear')
+# do raster computation
+micro_climate <- temp-ce_map
+plot(micro_climate,col = hcl.colors(10),
+     xlab='X (m)',ylab='Y(m)',main='Temperature Map (degrees Celsius)')
+```
 
+Cool! However, this is a rather simplified model. For research purposes, a more sophisticated model is needed.

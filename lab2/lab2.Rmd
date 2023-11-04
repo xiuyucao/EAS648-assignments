@@ -127,7 +127,7 @@ Now we have got the CHM, we can deploy individual tree detection based on that. 
 Here I use the function `lidR::locate_trees()`, where the window size `ws` is 10 meters. This means I think the radius of the tree canopy within my area is close to 5m.
 ```{r tree detection using fix-sized window}
 ttops <- locate_trees(nlas, lmf(ws = 10))  # tree detection using a fixed window size
-plot(chm, col = height.colors(50))  # plot CHM
+plot(chm, col = height.colors(50), main='CHM with Tree Tops (m)')  # plot CHM
 plot(sf::st_geometry(ttops), add = TRUE, pch = 3)  # add tree centers to the CHM
 ```
 
@@ -156,7 +156,7 @@ plot(heights, ws, type='l', ylim=c(0,12),
 
 ```{r get tree tops variable ws}
 ttops <- locate_trees(nlas,lmf(f))  # get tree tops
-plot(chm,col=height.colors(50))  # plot CHM
+plot(chm,col=height.colors(50),main='CHM with Tree Tops (m)')  # plot CHM
 plot(sf::st_geometry(ttops),add=T,pch=3)  # plot tree tops
 ```
 

@@ -1,0 +1,22 @@
+---
+title: "Change Analyses"
+author: "[Xiuyu Cao](https://github.com/xiuyucao)"
+date: "Nov 6, 2023"
+output: html_document
+---
+
+******************************************************
+## Assignemnt
+1. Conduct a comprehensive exploration of the spatiotemporal nuances within the provided social media dataset. This could, for example, investigate the underlying factors contributing to the observed differences between nature and non-nature photographs, or analyze the temporal and geographic variations that might account for specific trends in photograph sharing. You are expected to employ advanced statistical and geospatial techniques to delve deeper into this phenomenon. To substantiate your findings, create compelling visual representations that effectively illustrate the spatiotemporal dynamics at play. Provide a robust argument based on your analytical insights.
+
+2. Social media data include various sources of noise related to the frequency of sharing photographs that can obscure meaningful patterns. Your task is to develop a technique for noise reduction that surpasses basic filtering methods. Additionally, generate a visually engaging GIF that elucidates the spatiotemporal dynamics within the data. Alongside this, propose a hypothesis that elucidates the observed patterns based on your knowledge of the region and geographic processes. Your hypothesis should reflect your understanding of the factors of social media sharing and how they influence the temporal and spatial aspects of photograph sharing.
+
+******************************************************
+## Needed Packages
+```{r import packages, results='hide'}
+library(ggplot2)  # for plotting
+library(gganimate)  # for plotting animated figures
+```
+
+
+

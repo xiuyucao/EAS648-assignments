@@ -149,6 +149,7 @@ ggplot(yearly_creator, aes(x = year, y = total_creator)) +  # set x and y axes
   theme(axis.text.x = element_text(angle=0)) +  # set x axis text angle 
   labs(title='Yearly Trend in Creators on Flickr in Michigan', x = "Year", y = "Number of Creators")
 ```
+
 As evident from the yearly trend, the number of Flickr creators in Michigan increased from 2004 to 2011, reaching its peak at around 4000 individuals in the years 2011 to 2013, and began to decline in the subsequent years. By the year 2018, there were only approximately 400 Flickr creators in Michigan.
 
 Also, we can analysis the monthly creator trend every year.
@@ -169,6 +170,7 @@ monthly_creator  %>%
        x = "Month", y = "Number of Creators") +
   theme_classic()
 ```
+
 As shown in the graph, during summer times, the number of creators are the most.
 
 ### 2 Flickr Creator Trend Prediction
@@ -213,4 +215,4 @@ pani <-pmich + theme_void() +
 animate(pani + shadow_wake(0.1), fps=5)
 ```
 
-As shown in the GIF, there is a decline in the number of nature photos days before and on March 15, 2012, compared to the following days and the beginning of March. This can be explained by the presence of a tornado, highlighting the potential use of social media data to analyze the spatial and temporal track of severe weather events.
+As shown in the GIF, there is a decline in the number of nature photos in southeast Michigan during days before and on March 15, 2012, compared to the following days and the beginning of March. This can be explained by the presence of a tornado, highlighting the potential use of social media data to analyze the spatial and temporal track of severe weather events.

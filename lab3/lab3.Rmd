@@ -7,11 +7,11 @@ output: html_document
 
 ******************************************************
 ## Introduction
-In this study, 
+In this study, I want to find out the trend in using the social media platform [Flickr](https://www.flickr.com), as well as the users preference of sharing whether photos of nature or not. The sharing pattern of nature photos may indicate some weather events
 
 ******************************************************
 ## Needed Packages
-```{r import packages, results='hide'}
+```{r import packages, message=F}
 library(dplyr)  # for working with dataframes
 library(lubridate)  # for working with time data
 library(ggplot2)  # for plotting
@@ -26,16 +26,16 @@ MichFlickr <- read.csv('../data/lab3/MichiganFlickr.csv')  # read the csv file
 head(MichFlickr)  # show the first few lines of the data
 ```
 
-As we can see, the `dateupload` attribute is a huge integer. It represents the upload time in seconds from 1970-01-01. We need to convert it to a legible format using the functions in the `lubridate` package. The `as.POSIXct()` function can be used to turn the continuous seconds into a legible time formate, and the `as.Date()` function can be used to set the format of the time data.
+As we can see, the `dateupload` attribute is a huge integer. It represents the upload time in seconds from 1970-01-01. We need to convert it to a legible format using the functions in the `lubridate` package. The `as.POSIXct()` function can be used to turn the continuous seconds into a legible time format.
 ```{r handle datetime data}
-MichFlickr$dateupload <- as.POSIXct(MichFlickr$dateupload, origin='1970-01-01')  # change seconds into a legible time data
-# MichFlickr$date <- as.Date(format(MichFlickr$date, format='%Y-%m-%d'))  # set date format
+MichFlickr$time <- as.POSIXct(MichFlickr$dateupload, origin='1970-01-01')  # change seconds into a legible time data
+MichFlickr$date <- as.Date(format(MichFlickr$time, format='%Y-%m-%d'))
 # separately create year, month, day, hour, and minute attribute
-MichFlickr$year <- year(MichFlickr$dateupload)
-MichFlickr$month <- month(MichFlickr$dateupload, label = TRUE)
-MichFlickr$day <- day(MichFlickr$dateupload)
-MichFlickr$hour <- hour(MichFlickr$dateupload)
-MichFlickr$minute <- minute(MichFlickr$dateupload)
+MichFlickr$year <- year(MichFlickr$time)
+MichFlickr$month <- month(MichFlickr$time, label = TRUE)
+MichFlickr$day <- day(MichFlickr$time)
+# MichFlickr$hour <- hour(MichFlickr$time)
+# MichFlickr$minute <- minute(MichFlickr$time)
 ```
 The `predict_Na` attribute gives an index of how possible the picture is a picture of nature. Let's say if `predict_Na`$>0.6$, then it is likely to be a photo of nature.
 ```{r get whether nature}
@@ -44,180 +44,182 @@ MichFlickr$Nature<- MichFlickr$predict_Na > 0.6
 ```
 Also, for future spatial analyses, I need the Michigan's border data. This can be downloaded through the `map_data()` function in the `ggplot2` package.
 ```{r get MI border}
-states <- map_data("state")
-mich <- subset(states, region == "michigan")  # method 1
-mich <- states %>%  # method 2
-  filter(region == "michigan")
-counties <- map_data("county")
-mich_county <- subset(counties, region == "michigan")
-
-ggplot(data = mich) + 
-  geom_polygon(aes(x = long, y = lat), fill = "palegreen", color = "black") + 
-  coord_fixed(1.3)  # make the x 1.3 times greater than y
-
-# get rid of the weird line
-# see the variable group
-# mich=filter(mich, group==23)
-pmich <- ggplot(data = mich, mapping=aes(x = long, y = lat, group = group)) + 
-  coord_fixed(1.3) + 
-  geom_polygon(color = "black", fill = "orange") +
-  theme_classic() +
-  # add the counties
-  geom_polygon(data = mich_county, fill = NA, color = "white") +
-  geom_polygon(color = "black", fill = NA) +   # get the state border back on top
-  # omit the gratitude
-  theme_void() + 
-  geom_polygon(data = mich_county, fill = NA, color = "white") +
-  geom_polygon(color = "black", fill = NA) # get the state border back on top
-pmich
+states <- map_data("state")  # get the state data
+mich <- subset(states, region == "michigan")  # subset the states to get only Michigan
+counties <- map_data("county")  # get the counties data
+mich_county <- subset(counties, region == "michigan")  # subset the counties to get only thoes in Michigan
+# get the map
+pmich <- ggplot(data=mich,
+                mapping=aes(x=long, y=lat, group=group)) +  # set xy and group the peninsulas to prevent wierd lines
+  coord_fixed(1.3) +  # make the x 1.3 times greater than y
+  geom_polygon(color='black', fill='skyblue') +  # set the border and fill color
+  theme_void() +  # get rid of the lat and lon grids
+  geom_polygon(data = mich_county, fill = NA, color = "white") +  # set the counties border color
+  geom_polygon(color = "black", fill = NA) + # get the state border back on top
+  ggtitle('Map of Michigan')
+pmich +
+  theme(plot.title = element_text(size = 20, color = "black", face='bold', hjust=0.5))  # set title format
 ```
 
 ******************************************************
 ## Noise Reduction
-Social media data include various sources of noise related to the frequency of sharing photographs that can obscure meaningful patterns. Here I will develop a technique for noise reduction that surpasses basic filtering methods.
+Social media data include various sources of noise related to the frequency of sharing photographs that can obscure meaningful patterns. Here I will develop a technique for noise reduction that surpasses basic filtering methods. The steps are as follows.
 
-### Noise Reduction 1
+1. Time Range Check
+2. Robot Detection
+3. (Optional) Remove duplicate posts from one user
 
-### Noise Reduction 2
+### 1 Time Range Check
+According to the [Wikipedia page of Flickr](https://en.wikipedia.org/wiki/Flickr), it is a platform launched on Feb 10, 2004. So the posts before this time must be noise and need to be eliminated. Therefore, I will set a time threshold. The `lubridate::as.Date()` function can be used to turn character variable into date time variable.
+```{r time range check}
+denoise_mich <- MichFlickr %>%
+  filter(time >= as.Date('2004-2-10'))  # mask out posts earlier than 2004-2-10
+```
 
-### Noise Reduction 3
+### 2 Robot Detection
+The analysis of social media needs to address the issue of fake or robot accounts that can add to noise and bias in the result. Here I detect robot accounts based on the account's post behavior: whether is posting contents with a fixed interval.
+```{r robot detection}
+user_interval <- denoise_mich %>%  # get interval information
+  group_by(owner) %>%  # group records from the same owner
+  filter(n()>=20) %>%  # find robots from users who have posted >=20 times
+  arrange(owner, time) %>%  # sort the records by owner and time
+  mutate(interval=c(0,diff(time)))  # compute time interval (sec) in each group (give 0 to the first post)
+interval_stats <- user_interval %>%  # get interval statistics
+  summarise(publish_count=n(),  # get publish count
+            interval_pattern = as.numeric(names(which.max(table(interval)))),  # most frequent interval duration
+            interval_freq=as.numeric(table(interval)[which.max(table(interval))]))  # get same interval frequency
+head(interval_stats)
+```
+Human accounts should not have a strong pattern of posting. If most of the interval between each post is the same, the account is more likely to be a robot. Here I would say if an account has more than 60% of its contents are posted with same interval, it is a robot.
+```{r kill the robot}
+robot <- interval_stats %>%  # get robot blacklist
+  filter(interval_freq/publish_count>0.6 & interval_pattern>1) %>%  # 60% same interval and the interval > 1 sec
+  arrange(desc(publish_count))  # sort the records by publish count
+head(robot)
+# now do anti join to delete the robot accounts in the original data
+denoise_mich <- anti_join(denoise_mich, robot, by='owner')  # remove robot accounts
+nrow(MichFlickr)-nrow(denoise_mich)  # compute how many are removed
+```
+`r nrow(MichFlickr)-nrow(denoise_mich)` records, which are likely to be noise, are deleted.
+
+### 3 (Optional) Remove duplicate posts from one user
+When analyzing the the trend in using the social media platform, we wanna find out how many people are posting contents in Flickr. So we do not want to take into account one user have multiple posts within a time period we set.
+```{r repetition detection}
+# function of repetition detection
+rm_rep_post <- function(df,time_range){
+if (time_range == 'd') {
+    df <- df %>%
+      group_by(owner, date) %>%
+      slice(1) %>%
+      ungroup()
+  } else if (time_range == 'm') {
+    df <- df %>%
+      group_by(owner, year, month) %>%
+      slice(1) %>%
+      ungroup()
+  } else if (time_range == 'y') {
+    df <- df %>%
+      group_by(owner, year) %>%
+      slice(1) %>%
+      ungroup()
+  } else {
+    warning("Invalid time range specified. No grouping performed.")
+  }
+
+  return(df)
+}
+```
 
 ******************************************************
-## Plot Time Series
-For plotting, first create a new table `daily_photography` to store the photo count of each day.
-```{r get photo count}
-MichFlickr$count<- 1  # set count attribute for adding up
-daily_photography <- MichFlickr %>%
-  group_by(date) %>% # group by the date column
-  summarise(total_photos=sum(count)) %>%  # sum the grouped count
-  na.omit()  # get rid of the NAs
-head(daily_photography)
+## Data Analysis
+### 1 Flickr Popularity Trend
+Analyzing the evolution of creator number of a social media is important because it identifies periods of growth and decline, providing insights into the platform's overall health.
+```{r Flikr popularity trend anlaysis1}
+denoise_mich$count <- 1 # create a count attribute for adding up
+# analyze daily trend
+daily_creator <- denoise_mich %>%
+  rm_rep_post('d') %>%
+  group_by(date) %>%
+  summarise(total_creator=sum(count)) %>%
+  na.omit()
+head(daily_creator)
 ```
 Using `ggplot()`, we can plot the time series data.
 ```{r}
-# set time range
-min <- as.Date('2005-1-1')
-max <- NA
 # plot
-p <- ggplot(daily_photography, aes(x = date, y = total_photos)) +  # set x and y axes
+p <- ggplot(daily_creator, aes(x = date, y = total_creator)) +  # set x and y axes
   geom_line(color = "#00AFBB", linewidth = 1)  # plot line
   scale_x_date(date_labels = "%b")  # set date labels to abbreviation of months
-p +scale_x_date(limits = c(min, max))  # show plot
-# smooth the data
-p + stat_smooth(method = "loess", formula = y ~ x, size = 1) + scale_x_date(limits = c(min, max))
 # Smooth the data based on a spline function
-p + geom_smooth(method = lm, formula = y ~ splines::bs(x, 3), se = FALSE) + scale_x_date(limits = c(min, max))
+p + geom_smooth(method = lm, formula = y ~ splines::bs(x, 3), se = FALSE)
 ```
 
-Graph different categories of data. e.g. Nature & non-nature
+Predict
 ```{r}
-daily_nature <- MichFlickr %>%
-  mutate(day = as.Date(date, format="%Y-%m-%d")) %>%
-  group_by(day, Nature) %>% # group by the day column
-  summarise(total_photos=sum(count)) 
-ggplot(daily_nature, aes(x = day, y = total_photos)) + 
-  geom_line(aes(color = Nature), size = 1) +
-  scale_color_manual(values = c("#00AFBB", "#E7B800")) +
-  scale_x_date(limits = c(min, max)) +
-  theme_minimal()
+creator_ts <- ts(daily_creator$total_creator,start=c(2004,3),end=c(2018,3),frequency=365)
+plot(creator_ts)
+library(forecast)
+se_mod <- ses(creator_ts, h = (3*365))
+plot(se_mod)
+
+arima_model <- auto.arima(creator_ts)
+plot(arima_model$x,col="red")
+lines(fitted(arima_model),col="blue")
+fore_arima = forecast::forecast(arima_model, h=(3*365))
+plot(fore_arima,ylim=c(0,125))
 ```
 
-Analyze the monthly pattern of the sharing photograph through Flickr.
+
+
+
+```{r Flikr popularity trend anlaysis2}
+# analyze monthly trend
+monthly_creator <- denoise_mich %>%
+  rm_rep_post('m') %>%
+  group_by(year,month) %>%
+  summarise(total_creator=sum(count)) %>%
+  na.omit()
+head(monthly_creator)
+```
+
 ```{r}
-daily_monthly <- daily_photography %>%
-    mutate(month =  month(date, label = TRUE, abbr = FALSE),  # create month attribute
-           year  = year(date)) %>%  # create year attribute
-    group_by(year,month) %>%  # group the table by year and month attribute
-    summarise(total.qty = sum(total_photos))  # get the sum of each month
-head(daily_monthly,20)
-# plot the data
-daily_monthly  %>%
-    filter(year > 2004)  %>%  # keep rows that match the condition
-    ggplot(aes(x = month, y = total.qty, group = year)) +
-    geom_line(aes(color = as.factor(year))) +  # use as.factor() to make the year variable categorical
+# plot
+monthly_creator  %>%
+    ggplot(aes(x = month, y = total_creator, group = year)) +
+    geom_line(aes(color = as.factor(year))) +
     scale_color_discrete() + 
     labs(title = "Total Flickr Photographs for Michigan", x = "", y = "Total Photographs",
          subtitle = "Activity is highest for the summer months") +
    theme_classic()
 ```
 
-Do a similar week analysis
 ```{r}
-weekly <- daily_photography %>%
-    mutate(weekday =  wday(date, label = TRUE, abbr = FALSE),
-           year  = year(date)) %>%
-    group_by(year,weekday) %>%
-    summarise(total.qty = sum(total_photos)) 
-weekly  %>%
-    filter(year > 2004)  %>% 
-    ggplot(aes(x = weekday, y = total.qty, group = year)) +
-    geom_line(aes(color = as.factor(year))) +
-    scale_color_discrete() + 
-    labs(title = "Total Flickr Photographs for Michigan", x = "", y = "Total Photographs",
-         subtitle = "Activity is highest on the weekends") +
-  theme_bw()
+# yearly creator
+yearly_creator <- denoise_mich %>%
+  rm_rep_post('y') %>%
+  group_by(year) %>%
+  summarise(total_creator=sum(count)) %>%
+  na.omit()
+head(yearly_creator)
+#plot
+p <- ggplot(yearly_creator, aes(x = year, y = total_creator)) +  # set x and y axes
+  geom_line(color = "#00AFBB", linewidth = 1)  # plot line
+p
 ```
 
-Using `ggpmisc` package to analyze the peaks in time series
-```{r}
-library(ggpmisc)
-daily_nature_only <- MichFlickr %>%
- mutate(year = year(date), 
-        month =  month(date, label = TRUE, abbr = FALSE)) %>%
-  filter(Nature == TRUE) %>%
-  group_by(date, year, month) %>% # group by the day column
-  summarise(total_photos=sum(count)) 
+There was a tornado in Michigan in 2012, I wanna find out the impact of weather on users' sharing nature photos.
+```{r animate the data}
+animateMich <- denoise_mich %>%
+  filter(date >= as.Date('2012-03-01') & date <= as.Date('2012-3-31') & Nature==T)
+p3 <-pmich + theme_void() + 
+        geom_polygon(data = mich_county, fill = NA, color = "white") +
+        geom_polygon(color = "black", fill = NA) + 
+        geom_point(data = animateMich, aes(longitude, latitude), inherit.aes = FALSE) +
+        labs(title = 'Date: {format(frame_time, "%b %d %Y")}') +
+        transition_time(date) 
 
-daily_nature_only  %>%  
-    filter(year == '2011' & month=='December')  %>% 
-ggplot(aes(x = as.POSIXct(date), y = total_photos), as.numeric = FALSE) + 
-  geom_line() + 
-  stat_peaks(colour = "red") +
-  stat_peaks(geom = "text", colour = "red", angle = 45,
-               vjust = 1.5, hjust = 1,  x.label.fmt = "%d%B") +
-  stat_valleys(colour = "blue") +
- stat_valleys(geom = "text", colour = "blue", angle = 45,
-             vjust = 0.5, hjust = 0.5,  x.label.fmt = "%d%B")
+animate(p3 + shadow_wake(0.1), fps=5)
 ```
-
-## Animating Spatial Data
-
-
-## Check the data we want to animate
-```{r}
-library(tidyverse)
-filtered_data <- MichFlickr %>%
-filter(str_detect(str_to_lower(title), "snow"))
-pmich+
-geom_point(data = test, aes(longitude, latitude), inherit.aes = FALSE)
-
-pmich+
-geom_point(data = filtered_data, aes(longitude, latitude), inherit.aes = FALSE)
-```
-
-Now we can process data that we want to animate
-```{r}
-# remember to add other map elements
-#min <- as.Date("2008-01-01")
-#max  <- as.Date("2015-01-01")
-animateMich <- MichFlickr %>% 
-  filter( date >= as.Date('2010-01-01') & date <= as.Date('2010-12-31') & Nature=='TRUE')
-
-animateMich <- filtered_data
-animateMich <- filtered_data %>% 
-  filter( date >= as.Date('2010-01-01') & date <= as.Date('2010-12-31') & Nature=='TRUE')
-
-
-p2 <-pmich + theme_void() + 
-  geom_polygon(data = mich_county, fill = NA, color = "white") +
-  geom_polygon(color = "black", fill = NA) + 
-  geom_point(data = animateMich, aes(longitude, latitude), inherit.aes = FALSE) +
-  labs(title = '{frame_time}') +
-  transition_time(year) 
-animate(p2 + shadow_wake(0.1), fps=5)
-```
-
-There doesn't seem to be any distinguishable pattern. Further filtering of the data is needed.
 
 
 

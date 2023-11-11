@@ -1,5 +1,5 @@
 ---
-title: "Change Analyses"
+title: "Social Media Data Analyses"
 author: "[Xiuyu Cao](https://github.com/xiuyucao)"
 date: "Nov 6, 2023"
 output: html_document
@@ -7,13 +7,14 @@ output: html_document
 
 ******************************************************
 ## Introduction
-In this study, I want to find out the trend in using the social media platform [Flickr](https://www.flickr.com), as well as the users preference of sharing whether photos of nature or not. The sharing pattern of nature photos may indicate some weather events
+In this study, I want to find out the trend in the number of creators on the social media platform [Flickr](https://www.flickr.com), as well as the creators' sharing nature photos trend. The sharing pattern of nature photos may indicate the presence of some weather events.
 
 ******************************************************
 ## Needed Packages
 ```{r import packages, message=F}
 library(dplyr)  # for working with dataframes
 library(lubridate)  # for working with time data
+library(forecast)  # for predicting time series data
 library(ggplot2)  # for plotting
 library(gganimate)  # for plotting animated figures
 ```
@@ -26,16 +27,14 @@ MichFlickr <- read.csv('../data/lab3/MichiganFlickr.csv')  # read the csv file
 head(MichFlickr)  # show the first few lines of the data
 ```
 
-As we can see, the `dateupload` attribute is a huge integer. It represents the upload time in seconds from 1970-01-01. We need to convert it to a legible format using the functions in the `lubridate` package. The `as.POSIXct()` function can be used to turn the continuous seconds into a legible time format.
+As we can see, the `dateupload` attribute is a huge integer. It represents the upload time in seconds from 1970-01-01. We need to convert it to a legible format using the functions in the `lubridate` package. The `as.POSIXct()` function can be used to turn the continuous seconds into a legible time format, and the function `as.Date()` can set the format of the time.
 ```{r handle datetime data}
 MichFlickr$time <- as.POSIXct(MichFlickr$dateupload, origin='1970-01-01')  # change seconds into a legible time data
-MichFlickr$date <- as.Date(format(MichFlickr$time, format='%Y-%m-%d'))
-# separately create year, month, day, hour, and minute attribute
+MichFlickr$date <- as.Date(format(MichFlickr$time, format='%Y-%m-%d'))  # set the date format
+# separately create year, month, and day attribute
 MichFlickr$year <- year(MichFlickr$time)
 MichFlickr$month <- month(MichFlickr$time, label = TRUE)
 MichFlickr$day <- day(MichFlickr$time)
-# MichFlickr$hour <- hour(MichFlickr$time)
-# MichFlickr$minute <- minute(MichFlickr$time)
 ```
 The `predict_Na` attribute gives an index of how possible the picture is a picture of nature. Let's say if `predict_Na`$>0.6$, then it is likely to be a photo of nature.
 ```{r get whether nature}
@@ -47,16 +46,16 @@ Also, for future spatial analyses, I need the Michigan's border data. This can b
 states <- map_data("state")  # get the state data
 mich <- subset(states, region == "michigan")  # subset the states to get only Michigan
 counties <- map_data("county")  # get the counties data
-mich_county <- subset(counties, region == "michigan")  # subset the counties to get only thoes in Michigan
+mich_county <- subset(counties, region == "michigan")  # subset the counties to get only those in Michigan
 # get the map
 pmich <- ggplot(data=mich,
                 mapping=aes(x=long, y=lat, group=group)) +  # set xy and group the peninsulas to prevent wierd lines
   coord_fixed(1.3) +  # make the x 1.3 times greater than y
   geom_polygon(color='black', fill='skyblue') +  # set the border and fill color
-  theme_void() +  # get rid of the lat and lon grids
+  # theme_void() +  # get rid of the lat and lon grids
   geom_polygon(data = mich_county, fill = NA, color = "white") +  # set the counties border color
-  geom_polygon(color = "black", fill = NA) + # get the state border back on top
-  ggtitle('Map of Michigan')
+  geom_polygon(color = "black", fill = NA) +  # get the state border back on top
+  labs(title='Map of Michigan', x = "Longitude", y = "Latitude")
 pmich +
   theme(plot.title = element_text(size = 20, color = "black", face='bold', hjust=0.5))  # set title format
 ```
@@ -79,6 +78,7 @@ denoise_mich <- MichFlickr %>%
 ### 2 Robot Detection
 The analysis of social media needs to address the issue of fake or robot accounts that can add to noise and bias in the result. Here I detect robot accounts based on the account's post behavior: whether is posting contents with a fixed interval.
 ```{r robot detection}
+nrow_before_derobo <- nrow(denoise_mich)  # record the rows before removing the robot accounts
 user_interval <- denoise_mich %>%  # get interval information
   group_by(owner) %>%  # group records from the same owner
   filter(n()>=20) %>%  # find robots from users who have posted >=20 times
@@ -90,27 +90,27 @@ interval_stats <- user_interval %>%  # get interval statistics
             interval_freq=as.numeric(table(interval)[which.max(table(interval))]))  # get same interval frequency
 head(interval_stats)
 ```
-Human accounts should not have a strong pattern of posting. If most of the interval between each post is the same, the account is more likely to be a robot. Here I would say if an account has more than 60% of its contents are posted with same interval, it is a robot.
-```{r kill the robot}
+Human accounts should not have a strong pattern of posting. If most of the interval between each post is the same, the account is more likely to be a robot. Here I would say if an account has more than 60% of its contents are posted with the same interval, it is a robot.
+```{r kill the robots}
 robot <- interval_stats %>%  # get robot blacklist
   filter(interval_freq/publish_count>0.6 & interval_pattern>1) %>%  # 60% same interval and the interval > 1 sec
   arrange(desc(publish_count))  # sort the records by publish count
 head(robot)
 # now do anti join to delete the robot accounts in the original data
 denoise_mich <- anti_join(denoise_mich, robot, by='owner')  # remove robot accounts
-nrow(MichFlickr)-nrow(denoise_mich)  # compute how many are removed
+nrow_before_derobo-nrow(denoise_mich)  # compute how many are removed
 ```
-`r nrow(MichFlickr)-nrow(denoise_mich)` records, which are likely to be noise, are deleted.
+`r nrow_before_derobo-nrow(denoise_mich)` records, which are likely to be noise, are deleted.
 
 ### 3 (Optional) Remove duplicate posts from one user
-When analyzing the the trend in using the social media platform, we wanna find out how many people are posting contents in Flickr. So we do not want to take into account one user have multiple posts within a time period we set.
-```{r repetition detection}
+When analyzing the trend in creators on the social media platform, we want to find out how many people are posting contents on Flickr. So, we do not want to take into account one user having multiple posts within a time period we set.
+```{r repetition detection function}
 # function of repetition detection
-rm_rep_post <- function(df,time_range){
-if (time_range == 'd') {
+rm_rep_post <- function(df,time_range){  # time_range --> 'd' for day, 'm' for month, 'y' for year
+if (time_range == 'd') {  # different time ranges
     df <- df %>%
       group_by(owner, date) %>%
-      slice(1) %>%
+      slice(1) %>%  # leave only the first record in each group
       ungroup()
   } else if (time_range == 'm') {
     df <- df %>%
@@ -125,54 +125,34 @@ if (time_range == 'd') {
   } else {
     warning("Invalid time range specified. No grouping performed.")
   }
-
   return(df)
 }
 ```
 
 ******************************************************
 ## Data Analysis
-### 1 Flickr Popularity Trend
-Analyzing the evolution of creator number of a social media is important because it identifies periods of growth and decline, providing insights into the platform's overall health.
-```{r Flikr popularity trend anlaysis1}
+### 1 Flickr Creator Trend Analysis
+Analyzing the evolution of creator number of a social media is important because it identifies periods of growth and decline, providing insights into the platform's overall health. First analyze the creator trend on Flickr every year.
+```{r yearly creator trend analysis}
 denoise_mich$count <- 1 # create a count attribute for adding up
-# analyze daily trend
-daily_creator <- denoise_mich %>%
-  rm_rep_post('d') %>%
-  group_by(date) %>%
-  summarise(total_creator=sum(count)) %>%
-  na.omit()
-head(daily_creator)
+# yearly creator trend analysis
+yearly_creator <- denoise_mich %>%
+  rm_rep_post('y') %>%  # remove the repeat posts from one creator in a year
+  group_by(year) %>%  # group the records by year
+  summarise(total_creator=sum(count)) %>%  # get count sum
+  na.omit()  # omit the NAs
+head(yearly_creator)
+#plot the yearly trend in creators
+ggplot(yearly_creator, aes(x = year, y = total_creator)) +  # set x and y axes
+  geom_line(color = "red", linewidth = 1) +  # plot line
+  scale_x_continuous(breaks = yearly_creator$year) +  # show every year on x axis
+  theme(axis.text.x = element_text(angle=0)) +  # set x axis text angle 
+  labs(title='Yearly Trend in Creators on Flickr in Michigan', x = "Year", y = "Number of Creators")
 ```
-Using `ggplot()`, we can plot the time series data.
-```{r}
-# plot
-p <- ggplot(daily_creator, aes(x = date, y = total_creator)) +  # set x and y axes
-  geom_line(color = "#00AFBB", linewidth = 1)  # plot line
-  scale_x_date(date_labels = "%b")  # set date labels to abbreviation of months
-# Smooth the data based on a spline function
-p + geom_smooth(method = lm, formula = y ~ splines::bs(x, 3), se = FALSE)
-```
+As evident from the yearly trend, the number of Flickr creators in Michigan increased from 2004 to 2011, reaching its peak at around 4000 individuals in the years 2011 to 2013, and began to decline in the subsequent years. By the year 2018, there were only approximately 400 Flickr creators in Michigan.
 
-Predict
-```{r}
-creator_ts <- ts(daily_creator$total_creator,start=c(2004,3),end=c(2018,3),frequency=365)
-plot(creator_ts)
-library(forecast)
-se_mod <- ses(creator_ts, h = (3*365))
-plot(se_mod)
-
-arima_model <- auto.arima(creator_ts)
-plot(arima_model$x,col="red")
-lines(fitted(arima_model),col="blue")
-fore_arima = forecast::forecast(arima_model, h=(3*365))
-plot(fore_arima,ylim=c(0,125))
-```
-
-
-
-
-```{r Flikr popularity trend anlaysis2}
+Also, we can analysis the monthly creator trend every year.
+```{r monthly creator trend}
 # analyze monthly trend
 monthly_creator <- denoise_mich %>%
   rm_rep_post('m') %>%
@@ -180,49 +160,57 @@ monthly_creator <- denoise_mich %>%
   summarise(total_creator=sum(count)) %>%
   na.omit()
 head(monthly_creator)
-```
-
-```{r}
 # plot
 monthly_creator  %>%
-    ggplot(aes(x = month, y = total_creator, group = year)) +
-    geom_line(aes(color = as.factor(year))) +
-    scale_color_discrete() + 
-    labs(title = "Total Flickr Photographs for Michigan", x = "", y = "Total Photographs",
-         subtitle = "Activity is highest for the summer months") +
-   theme_classic()
+  ggplot(aes(x = month, y = total_creator, group = year)) +
+  geom_line(aes(color = as.factor(year))) +
+  scale_color_discrete() + 
+  labs(title = "Monthly Trend Every Year in Creators on Flickr in Michigan",
+       x = "Month", y = "Number of Creators") +
+  theme_classic()
 ```
+As shown in the graph, during summer times, the number of creators are the most.
 
-```{r}
-# yearly creator
-yearly_creator <- denoise_mich %>%
-  rm_rep_post('y') %>%
-  group_by(year) %>%
+### 2 Flickr Creator Trend Prediction
+I also want to predict the future trend in creators on Flickr in Michigan. Here I get the daily creator trend and then do a prediction using Autoregressive Integrated Moving Average (ARIMA) modeling.
+```{r Flikr daily creator trend anlaysis and prediction}
+# analyze daily trend
+daily_creator <- denoise_mich %>%
+  rm_rep_post('d') %>%
+  group_by(date) %>%
   summarise(total_creator=sum(count)) %>%
   na.omit()
-head(yearly_creator)
-#plot
-p <- ggplot(yearly_creator, aes(x = year, y = total_creator)) +  # set x and y axes
-  geom_line(color = "#00AFBB", linewidth = 1)  # plot line
-p
+# plot daily trend
+ggplot(daily_creator, aes(x = date, y = total_creator)) +  # set x and y axes
+  geom_line(color = "red", linewidth = 1) +  # plot line
+  theme(axis.text.x = element_text(angle=0)) +  # set x axis text angle 
+  geom_smooth(method = lm, formula = y ~ splines::bs(x, 3), se = FALSE, color='yellow') +
+  labs(title='Daily Trend in Creators on Flickr in Michigan', x = "Time", y = "Number of Creators")
+# predict future trend
+daily_creator <- arrange(daily_creator,date)
+creator_ts <- ts(daily_creator$total_creator,start=2004,end=2017,frequency=365)  # convert to time series
+arima_model <- auto.arima(creator_ts)  # get model
+plot(arima_model$x,col="red")  # see the fit of the model: plot real data
+lines(fitted(arima_model),col="blue")  # see the fit of the model: plot predicted
+fore_arima = forecast::forecast(arima_model, h=(3*365))  # predict future trend
+plot(fore_arima,ylim=c(0,125),xlab='Year',ylab='Number of Creators')
 ```
 
-There was a tornado in Michigan in 2012, I wanna find out the impact of weather on users' sharing nature photos.
-```{r animate the data}
+As shown in the graphs, the number of creators will not exceed the peak in the following 3 years.
+
+### 3 Spatial Temporal Analysis of Nature Photos
+There was a [tornado in Michigan in 2012](https://www.weather.gov/dtx/120315tornadoes). This tornado affected the southeast of Michigan on and before March 15, 2012. I want to find out the impact of weather on users' sharing nature photos.
+```{r animate spatial emporal data}
 animateMich <- denoise_mich %>%
-  filter(date >= as.Date('2012-03-01') & date <= as.Date('2012-3-31') & Nature==T)
-p3 <-pmich + theme_void() + 
+  filter(date >= as.Date('2012-03-01') & date <= as.Date('2012-3-31') & Nature==T)  # set time limit and leave only nature photos
+pani <-pmich + theme_void() + 
         geom_polygon(data = mich_county, fill = NA, color = "white") +
         geom_polygon(color = "black", fill = NA) + 
         geom_point(data = animateMich, aes(longitude, latitude), inherit.aes = FALSE) +
         labs(title = 'Date: {format(frame_time, "%b %d %Y")}') +
         transition_time(date) 
 
-animate(p3 + shadow_wake(0.1), fps=5)
+animate(pani + shadow_wake(0.1), fps=5)
 ```
 
-
-
-
-
-
+As shown in the GIF, there is a decline in the number of nature photos days before and on March 15, 2012, compared to the following days and the beginning of March. This can be explained by the presence of a tornado, highlighting the potential use of social media data to analyze the spatial and temporal track of severe weather events.

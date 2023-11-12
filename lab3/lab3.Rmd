@@ -1,5 +1,5 @@
 ---
-title: "Social Media Data Analyses"
+title: "Social Media Data Analysis"
 author: "[Xiuyu Cao](https://github.com/xiuyucao)"
 date: "Nov 6, 2023"
 output: html_document
@@ -11,6 +11,7 @@ In this study, I want to find out the trend in the number of creators on the soc
 
 ******************************************************
 ## Needed Packages
+Run the following codes to import packages necessary in this project.
 ```{r import packages, message=F}
 library(dplyr)  # for working with dataframes
 library(lubridate)  # for working with time data
@@ -21,7 +22,9 @@ library(gganimate)  # for plotting animated figures
 
 ******************************************************
 ## Data Preparing
-The social media data used here is from [Flickr](https://www.flickr.com). They are photos taken in Michigan in recent twenty years. First read the data.
+The social media data used here is from [Flickr](https://www.flickr.com). They are photos taken in Michigan in recent twenty years. 
+
+First read the data.
 ```{r read data}
 MichFlickr <- read.csv('../data/lab3/MichiganFlickr.csv')  # read the csv file
 head(MichFlickr)  # show the first few lines of the data
@@ -52,7 +55,6 @@ pmich <- ggplot(data=mich,
                 mapping=aes(x=long, y=lat, group=group)) +  # set xy and group the peninsulas to prevent wierd lines
   coord_fixed(1.3) +  # make the x 1.3 times greater than y
   geom_polygon(color='black', fill='skyblue') +  # set the border and fill color
-  # theme_void() +  # get rid of the lat and lon grids
   geom_polygon(data = mich_county, fill = NA, color = "white") +  # set the counties border color
   geom_polygon(color = "black", fill = NA) +  # get the state border back on top
   labs(title='Map of Michigan', x = "Longitude", y = "Latitude")
@@ -62,7 +64,7 @@ pmich +
 
 ******************************************************
 ## Noise Reduction
-Social media data include various sources of noise related to the frequency of sharing photographs that can obscure meaningful patterns. Here I will develop a technique for noise reduction that surpasses basic filtering methods. The steps are as follows.
+Social media data include various sources of noise related to the frequency of sharing photographs that can obscure meaningful patterns. Here I will develop a technique for noise reduction that surpasses basic filtering methods. This technique includes three steps.
 
 1. Time Range Check
 2. Robot Detection
@@ -123,7 +125,7 @@ if (time_range == 'd') {  # different time ranges
       slice(1) %>%
       ungroup()
   } else {
-    warning("Invalid time range specified. No grouping performed.")
+    warning("Invalid time range specified.")
   }
   return(df)
 }
@@ -153,7 +155,7 @@ ggplot(yearly_creator, aes(x = year, y = total_creator)) +  # set x and y axes
 As evident from the yearly trend, the number of Flickr creators in Michigan increased from 2004 to 2011, reaching its peak at around 4000 individuals in the years 2011 to 2013, and began to decline in the subsequent years. By the year 2018, there were only approximately 400 Flickr creators in Michigan.
 
 Also, we can analysis the monthly creator trend every year.
-```{r monthly creator trend}
+```{r monthly creator trend, message=F}
 # analyze monthly trend
 monthly_creator <- denoise_mich %>%
   rm_rep_post('m') %>%
@@ -202,17 +204,16 @@ As shown in the graphs, the number of creators will not exceed the peak in the f
 
 ### 3 Spatial Temporal Analysis of Nature Photos
 There was a [tornado in Michigan in 2012](https://www.weather.gov/dtx/120315tornadoes). This tornado affected the southeast of Michigan on and before March 15, 2012. I want to find out the impact of weather on users' sharing nature photos.
-```{r animate spatial emporal data}
+```{r animate spatial temporal data}
 animateMich <- denoise_mich %>%
   filter(date >= as.Date('2012-03-01') & date <= as.Date('2012-3-31') & Nature==T)  # set time limit and leave only nature photos
-pani <-pmich + theme_void() + 
+pani <-pmich +
         geom_polygon(data = mich_county, fill = NA, color = "white") +
         geom_polygon(color = "black", fill = NA) + 
         geom_point(data = animateMich, aes(longitude, latitude), inherit.aes = FALSE) +
         labs(title = 'Date: {format(frame_time, "%b %d %Y")}') +
-        transition_time(date) 
-
-animate(pani + shadow_wake(0.1), fps=5)
+        transition_time(date)
+animate(pani + shadow_wake(0.1), fps=5)  # get gif result
 ```
 
 As shown in the GIF, there is a decline in the number of nature photos in southeast Michigan during days before and on March 15, 2012, compared to the following days and the beginning of March. This can be explained by the presence of a tornado, highlighting the potential use of social media data to analyze the spatial and temporal track of severe weather events.

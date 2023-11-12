@@ -1,8 +1,77 @@
 ---
-title: "This is the Title of Lab 4"
+title: "Sentiment Analysis"
 author: "[Xiuyu Cao](https://github.com/xiuyucao)"
 date: "Nov 9, 2023"
 output: html_document
 ---
 
 ******************************************************
+## Needed Packages
+```{r import needed packages, message=F}
+library(xlsx)  # for reading excel files
+library(tidytext)  # get sentiments
+library(textdata)  # get lexicon
+library(ggplot2)  # for plotting graphs
+library(tidyverse)  # for manipulating the data
+library(sentimentr)
+```
+
+******************************************************
+## Get Book Text
+The book I want to analyze is [*The Remains of the Day*](https://en.wikipedia.org/wiki/The_Remains_of_the_Day) by [Kazuo Ishiguro](https://en.wikipedia.org/wiki/Kazuo_Ishiguro). The book set against the backdrop of post-war England. It tells, in first-person narration, a story of a butler, Stevens, who has a long record of service at Darlington Hall, a grand estate. As Stevens embarks on a journey to the West Country, he reflects on his decades of loyal service to Lord Darlington and examines the choices he made in the name of duty and professionalism. Ishiguro masterfully delves into themes of memory, regret, and the passage of time, creating a narrative that is both emotionally rich and thematically profound. 
+
+*The Remains of the Day* is characterized by Kazuo Ishiguro's exquisite and restrained prose. The language in the novel is marked by a sense of formality and precision, mirroring the protagonist Stevens' identity as a dedicated English butler. Ishiguro's writing style is elegant and measured, reflecting the reserved nature of the characters and the societal norms of the time. The author skillfully employs subtle nuances and understatements, allowing readers to glean deeper emotions and meaning beneath the surface. The narrative unfolds with a meticulous attention to detail, and the use of flashbacks adds layers to the storytelling. Overall, the language in "The Remains of the Day" is a crucial element in conveying the complexities of the characters and the themes of the novel with subtlety and grace.
+
+![](../images/book.jpg)
+
+I have downloaded the `.txt` file of the book and enter the text into a `.csv` file, separated by chapters. After reading in the book, we can use the `get_sentences()` function from `sentimentr` package to separate the sentences.
+```{r read book}
+book <- read.csv('../data/lab4/the_remains_of_the_day.csv')
+str(book)
+book_sentences <- get_sentences(book)
+head(book_sentences,1)
+```
+
+## Sentiment Analysis Using Lexicons
+Sentiment analysis using lexicons is a technique that involves evaluating the sentiment or emotion expressed in a piece of text by leveraging predefined lexicons or dictionaries. Lexicons are collections of words or phrases associated with sentiment scores or polarities (positive, negative, or neutral).
+
+In this approach, each word in the text is matched against the entries in the lexicon, and the sentiment score is assigned based on the word's sentiment polarity. The sentiment scores are then aggregated to determine the overall sentiment of the text.
+
+This approach is considering the text as a combination of its individual words and the sentiment content of the whole text as the sum of the sentiment content of the individual words.
+
+
+Taking in mind when the text includes instances of sarcasm or negated text when doing sentiment analysis.
+Also, the size of the chunk matters. A text the size of many paragraphs can often have positve and negative sentiment that average out to zero. Thus it is better to analyze sentence-sized text.
+```{r}
+get_sentiments('afinn')
+get_sentiments('bing')
+get_sentiments('nrc')
+```
+
+### Sentiment analysis using inner join
+Use the `dplyr::inner_join(x,y)` function, which returns all rows from `x` where there are matching values in `y`, and all columns from `x` and `y`. If there are multiple mathes between `x` and `y`, all combionation of the matches are returned. This is a mutating join.
+
+convert the text to the tidy format using `tidytext::unnest_tokens()`
+```{r}
+library(stringr)
+book_words <- book_sentences %>%
+  unnest_tokens(word,Content)
+```
+
+### Word Clouds
+```{r}
+library(wordcloud)
+library(RColorBrewer)
+book_words %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+
+library(reshape2)
+book_words %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("gray20", "gray80"),
+                   max.words = 100)
+```

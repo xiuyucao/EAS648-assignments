@@ -2,61 +2,104 @@
 title: "Sentiment Analysis"
 author: "[Xiuyu Cao](https://github.com/xiuyucao)"
 date: "Nov 9, 2023"
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_float: true
 ---
 
 ******************************************************
 ## Needed Packages
 ```{r import needed packages, message=F}
-library(xlsx)  # for reading excel files
-library(tidytext)  # get sentiments
+library(tidytext)  # for getting sentiments and manipulating the text
 library(textdata)  # get lexicon
 library(ggplot2)  # for plotting graphs
 library(tidyverse)  # for manipulating the data
-library(sentimentr)
+library(sentimentr)  # for sentence analysis in sentences
 ```
 
 ******************************************************
-## Get Book Text
-The book I want to analyze is [*The Remains of the Day*](https://en.wikipedia.org/wiki/The_Remains_of_the_Day) by [Kazuo Ishiguro](https://en.wikipedia.org/wiki/Kazuo_Ishiguro). The book set against the backdrop of post-war England. It tells, in first-person narration, a story of a butler, Stevens, who has a long record of service at Darlington Hall, a grand estate. As Stevens embarks on a journey to the West Country, he reflects on his decades of loyal service to Lord Darlington and examines the choices he made in the name of duty and professionalism. Ishiguro masterfully delves into themes of memory, regret, and the passage of time, creating a narrative that is both emotionally rich and thematically profound. 
+## An Introduction to the Book
+The book I want to analyze is [*The Remains of the Day*](https://en.wikipedia.org/wiki/The_Remains_of_the_Day) by [Kazuo Ishiguro](https://en.wikipedia.org/wiki/Kazuo_Ishiguro). The book is set against the background of post-war England. It tells, in first-person narration, a story of a butler, Stevens, who has a long record of service at Darlington Hall, a grand estate. As he embarks on a journey to the West Country, he reflects on his decades of loyal service to Lord Darlington and examines the choices he made in the name of duty and professionalism. Ishiguro masterfully delves into themes of memory, regret, and the passage of time, creating a narrative that is both emotionally rich and thematically profound.
 
-*The Remains of the Day* is characterized by Kazuo Ishiguro's exquisite and restrained prose. The language in the novel is marked by a sense of formality and precision, mirroring the protagonist Stevens' identity as a dedicated English butler. Ishiguro's writing style is elegant and measured, reflecting the reserved nature of the characters and the societal norms of the time. The author skillfully employs subtle nuances and understatements, allowing readers to glean deeper emotions and meaning beneath the surface. The narrative unfolds with a meticulous attention to detail, and the use of flashbacks adds layers to the storytelling. Overall, the language in "The Remains of the Day" is a crucial element in conveying the complexities of the characters and the themes of the novel with subtlety and grace.
+What impresses me most is that Kazuo Ishiguro portrays a man with contradictions. Stevens loves Miss Kenton, another maid at Darlington Hall. He reads her letters repeatedly and drives thousands of miles only to see her. Additionally, as there are always meetings at Darlington Hall about the world situation, Stevens is well-informed about what is happening both in Darlington Hall and in the world. He even knows that his employer has deals with Nazis. However, he never expresses his affection for Miss Kenton, and when people ask him about the world situation, he pretends to be ignorant. As a reader, I can feel his struggle through his elegant words. Although he experiences intense emotions, all he tries to do is follow his father’s will -- to be a great butler. He restrains himself and ignores his employer’s problematic standpoint, which eventually leads to his estrangement from Kenton, as well as to Darlington's infamy.
+
+Therefore, *The Remains of the Day* is characterized by Kazuo Ishiguro's exquisite and restrained prose. The language in the novel is marked by a sense of formality and precision, mirroring the protagonist Stevens' identity as a dedicated English butler. The author skillfully employs subtle nuances and understatements, allowing readers to glean deeper emotions and meaning beneath the surface, adding difficult to sentiment analysis, at the same time.
 
 ![](../images/book.jpg)
 
-I have downloaded the `.txt` file of the book and enter the text into a `.csv` file, separated by chapters. After reading in the book, we can use the `get_sentences()` function from `sentimentr` package to separate the sentences.
-```{r read book}
-book <- read.csv('../data/lab4/the_remains_of_the_day.csv')
-str(book)
-book_sentences <- get_sentences(book)
+I have downloaded the `.txt` file of the book and enter the text into a `.csv` file, separated by chapters. After reading in the book, we can use the `get_sentences()` function from `sentimentr` package to separate the sentences and use `unnest_tokens()` function in the `tidytext` package to separate the words in each sentences.
+```{r get book data frame}
+book <- read.csv('../data/lab4/the_remains_of_the_day.csv')  # read book
+str(book)  # structure of data
+book_sentences <- get_sentences(book)  # get book sentences
 head(book_sentences,1)
+book_words <- unnest_tokens(book_sentences, word, Content)  # get book words
+head(book_words)
 ```
 
-## Sentiment Analysis Using Lexicons
-Sentiment analysis using lexicons is a technique that involves evaluating the sentiment or emotion expressed in a piece of text by leveraging predefined lexicons or dictionaries. Lexicons are collections of words or phrases associated with sentiment scores or polarities (positive, negative, or neutral).
+******************************************************
+## Sentiment Analysis
+### Differenct Lexicons
+Sentiment analysis using lexicons is a technique that involves evaluating the sentiment or emotion expressed in a piece of text by leveraging predefined lexicons or dictionaries. Lexicons are collections of words or phrases associated with sentiment scores or polarities (positive, negative, or neutral). In this approach, each word in the text is matched against the entries in the lexicon, and the sentiment score is assigned based on the word's sentiment polarity. The sentiment scores are then aggregated to determine the overall sentiment of the text.
 
-In this approach, each word in the text is matched against the entries in the lexicon, and the sentiment score is assigned based on the word's sentiment polarity. The sentiment scores are then aggregated to determine the overall sentiment of the text.
-
-This approach is considering the text as a combination of its individual words and the sentiment content of the whole text as the sum of the sentiment content of the individual words.
-
-
-Taking in mind when the text includes instances of sarcasm or negated text when doing sentiment analysis.
-Also, the size of the chunk matters. A text the size of many paragraphs can often have positve and negative sentiment that average out to zero. Thus it is better to analyze sentence-sized text.
-```{r}
+This approach considers the text as a combination of its individual words and the sentiment content of the whole text as the sum of the sentiment content of the individual words. It is a simple and straightforward algorithm, but it can introduce bias when the text includes instances of sarcasm or negated text, or when the text size has many paragraphs with both positive and negative sentiment that eventually average out to zero.
+```{r three lexicons}
+# three different lexicons
 get_sentiments('afinn')
 get_sentiments('bing')
 get_sentiments('nrc')
 ```
 
+I will first use the `bing` lexicon to analyze the sentiment of the whole book since it is simple with only positive and negative evaluations and inclusive with 6,786 words.
+
 ### Sentiment analysis using inner join
 Use the `dplyr::inner_join(x,y)` function, which returns all rows from `x` where there are matching values in `y`, and all columns from `x` and `y`. If there are multiple mathes between `x` and `y`, all combionation of the matches are returned. This is a mutating join.
+```{r sentiment analysis nrc}
+# get the positive words 
+lexicon <- get_sentiments('bing')
+positive <- filter(lexicon, sentiment=='positive')
+counts_of_positive_words <- book_words %>%
+  filter(Chapter == "Prologue")%>%
+  inner_join(positive) %>%
+  count(word, sort = TRUE)
 
-convert the text to the tidy format using `tidytext::unnest_tokens()`
-```{r}
-library(stringr)
-book_words <- book_sentences %>%
-  unnest_tokens(word,Content)
+book_sentiment <- book_words %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(Chapter, sentence_id, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+# plot the result
+ggplot(filter(book_sentiment), aes(sentence_id, sentiment, fill = Chapter)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~Chapter, scales = "free_x")  # set each plot using the most suitable x scale
+
+# chapter 4 is interesting, analyze a bit here ------------------------------------------------------------------------
+book_sentiment$count <- 1
+sentiment_stats <- book_sentiment %>%
+  group_by(sentiment, Chapter) %>%
+  summarise(sentiment_count=sum(count)) %>%
+  arrange(Chapter,sentiment)
+
+
+df <- filter(sentiment_stats, Chapter=='Chapter 3')
+
+ggplot(df, aes(x = sentiment, y = sentiment_count,fill='red')) +
+  geom_col(show.legend = FALSE)
+
+
 ```
+
+As can see in the plots, Chapter 4 has lots of positive sentiments and some negative. This is a really interesting chapter! In this chapter, Stevens recalls an incident where he stays at a local inn and was warmly welcomed. Seeking some social interaction, he descends to the bar and tries to engage in light banter and share a humorous comment, "A local variation on the cock crow, no doubt"， which is intended to be a witty remark, while the locals don't quite understand his humor nor respond positively. That night Stevens stayed up late reflecting on his humor, worrying about whether it is an affront to the household. And he also reveals that he has been working on improving his bantering skills by listening to a radio program and practicing formulating witticisms based on his surroundings in order to pursuit meeting Mr. Farraday's expectations as well as adapting to different social situations.
+
+We can feel from this passage Stevens is a meticulous and somewhat reserved professional. His character is defined by a combination of professionalism, social awkwardness, and sensitivity. The passage highlights his discomfort in social interactions and sensitivity to the reactions of others.
+
+Interesting psychological depiction!
+
+Furthermore, he proudly highlighted his skill in silver polishing at Darlington Hall, earning numerous praises from the notable guests of Lord Darlington, played a pivotal role in facilitating smooth negotiations between Lord Darlington and the guests. 
+
+Therefore, this chapter carries a predominantly positive tone with some negative sentiments due to the protagonist's social awkwardness and difficulty to adapt to different social situations.
 
 ### Word Clouds
 ```{r}
@@ -70,8 +113,42 @@ book_words %>%
 library(reshape2)
 book_words %>%
   inner_join(get_sentiments("bing")) %>%
+  filter(word != 'miss') %>%
   count(word, sentiment, sort = TRUE) %>%
   acast(word ~ sentiment, value.var = "n", fill = 0) %>%
   comparison.cloud(colors = c("gray20", "gray80"),
                    max.words = 100)
 ```
+
+### Ambiguous Text Analysis
+"The Remains of the Day" by Kazuo Ishiguro is a novel rich in subtleties and nuances, and it contains several instances of ambiguous text that contribute to the complexity of the narrative. One example occurs in the interactions between the main character, Stevens, and Miss Kenton, the housekeeper. Throughout the novel, there is a subtle ambiguity in the nature of their relationship and the unspoken feelings between them.
+
+For instance, when Stevens reminisces about his past experiences at Darlington Hall and his interactions with Miss Kenton, the text is imbued with a sense of restrained emotion and unspoken desires. The ambiguity lies in the reader's interpretation of whether there was a missed romantic connection between the two characters. The novel skillfully leaves this aspect open to interpretation, allowing readers to ponder the depth of their relationship and the unspoken feelings that may exist beneath the surface.
+
+This ambiguity adds layers to the narrative, inviting readers to engage in a nuanced exploration of the characters' emotions and relationships. It exemplifies how the author uses ambiguity as a literary device to provoke thought and reflection, making "The Remains of the Day" a compelling and thought-provoking work.
+
+In the retrospect of Stevens, he recalled Lord Darlinton's attitude towards Jewish
+
+<span style="color:green">*I FEEL I should perhaps return a moment to the question of his lordship's attitude to Jewish persons, since this whole issue of anti Semitism, I realize, has become a rather sensitive one these days. In particular, let me clear up this matter of a supposed bar against Jewish persons on the staff at Darlington Hall. Since this allegation falls very directly into my own realm, I am able to refute it with absolute authority. There were many Jewish persons on my staff throughout all my years with his lordship, and let me say furthermore that they were never treated in any way differently on account of their race. One really cannot guess the reason for these absurd allegations - unless, quite ludicrously, they originate from that brief, entirely insignificant few weeks in the early thirties when Mrs Carolyn Barnet came to wield an unusual influence over his lordship.*</span>
+
+<span style="color:green">*I call them 'incidents' but some of these were extremely minor. For instance, I recall overhearing at dinner one evening, when a particular newspaper had been mentioned, his lordship remarking: "Oh, you mean that Jewish propaganda sheet." And then on another occasion around that time, I remember his instructing me to cease giving donations to a particular local charity which regularly came to the door on the grounds that the management committee was 'more or less homogeneously Jewish'. I have remembered these remarks because they truly surprised me at the time, his lordship never previously having shown' any antagonism whatsoever towards the Jewish race.*</span>
+Using bing
+```{r}
+
+```
+
+Using nrc
+```{r}
+
+```
+
+Using sentimentr
+```{r}
+amb_text <- book_sentences[1599:1601,]
+amb_sentiment <- amb_text %>%
+    sentiment_by('Content')%>%
+  as.data.frame()
+```
+
+
+

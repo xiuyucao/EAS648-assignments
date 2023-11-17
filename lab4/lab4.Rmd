@@ -16,19 +16,21 @@ library(textdata)  # get lexicon
 library(ggplot2)  # for plotting graphs
 library(tidyverse)  # for manipulating the data
 library(sentimentr)  # for sentence analysis in sentences
+library(wordcloud)  # for generating word clouds
+library(reshape2)  # for get a matrix from data frame to plot comparison cloud
 ```
 
 ******************************************************
 ## An Introduction to the Book
-The book I want to analyze is [*The Remains of the Day*](https://en.wikipedia.org/wiki/The_Remains_of_the_Day) by [Kazuo Ishiguro](https://en.wikipedia.org/wiki/Kazuo_Ishiguro). The book is set against the background of post-war England. It tells, in first-person narration, a story of a butler, Stevens, who has a long record of service at Darlington Hall, a grand estate. As he embarks on a journey to the West Country, he reflects on his decades of loyal service to Lord Darlington and examines the choices he made in the name of duty and professionalism. Ishiguro masterfully delves into themes of memory, regret, and the passage of time, creating a narrative that is both emotionally rich and thematically profound.
+The book I want to analyze is [*The Remains of the Day*](https://en.wikipedia.org/wiki/The_Remains_of_the_Day) by [Kazuo Ishiguro](https://en.wikipedia.org/wiki/Kazuo_Ishiguro). The book is set against the background of post-war England. It tells, in first-person narration, a story of a butler, Stevens, who has a long record of service at Darlington Hall, a grand estate. As he embarks on a journey to the West Country, he reflects on his decades of loyal service to Lord Darlington and examines the choices he made in the name of duty and professionalism. 
 
-What impresses me most is that Kazuo Ishiguro portrays a man with contradictions. Stevens loves Miss Kenton, another maid at Darlington Hall. He reads her letters repeatedly and drives thousands of miles only to see her. Additionally, as there are always meetings at Darlington Hall about the world situation, Stevens is well-informed about what is happening both in Darlington Hall and in the world. He even knows that his employer has deals with Nazis. However, he never expresses his affection for Miss Kenton, and when people ask him about the world situation, he pretends to be ignorant. As a reader, I can feel his struggle through his elegant words. Although he experiences intense emotions, all he tries to do is follow his father’s will -- to be a great butler. He restrains himself and ignores his employer’s problematic standpoint, which eventually leads to his estrangement from Kenton, as well as to Darlington's infamy.
+Ishiguro masterfully delves into themes of memory, regret, and the passage of time, creating a narrative that is both emotionally rich and thematically profound. What impresses me most is that Kazuo Ishiguro portrays a man with contradictions. Stevens loves Miss Kenton, another maid at Darlington Hall. He reads her letters repeatedly and drives thousands of miles only to see her. Additionally, as there are always meetings at Darlington Hall regarding the world situation, Stevens is well-informed about what is happening both in Darlington Hall and in the world. He even knows that his employer has deals with the Nazis. However, he never expresses his affection for Miss Kenton, and when people ask him about the world situation, he pretends to be ignorant. As a reader, I can feel his struggle through his elegant words. Although he experiences intense emotions, all he tries to do is follow his father’s will—to be a great butler. He restrains himself and ignores his employer’s problematic standpoint, which eventually leads to his estrangement from Kenton, as well as to Darlington's infamy.
 
-Therefore, *The Remains of the Day* is characterized by Kazuo Ishiguro's exquisite and restrained prose. The language in the novel is marked by a sense of formality and precision, mirroring the protagonist Stevens' identity as a dedicated English butler. The author skillfully employs subtle nuances and understatements, allowing readers to glean deeper emotions and meaning beneath the surface, adding difficult to sentiment analysis, at the same time.
+*The Remains of the Day* is characterized by Kazuo Ishiguro's exquisite and restrained prose. The language in the novel is marked by a sense of formality and precision, mirroring the protagonist Stevens' identity as a dedicated English butler. The author skillfully employs subtle nuances and understatements, allowing readers to glean deeper emotions and meaning beneath the surface, adding difficult to sentiment analysis, at the same time.
 
 ![](../images/book.jpg)
 
-I have downloaded the `.txt` file of the book and enter the text into a `.csv` file, separated by chapters. After reading in the book, we can use the `get_sentences()` function from `sentimentr` package to separate the sentences and use `unnest_tokens()` function in the `tidytext` package to separate the words in each sentences.
+I have downloaded the `.txt` file of the book and enter the text into a `.csv` file, each row representing a chapter. After reading in the book using `read.csv`, we can use the `get_sentences()` function from `sentimentr` package to separate the sentences and use `unnest_tokens()` function in the `tidytext` package to separate the words in each sentences.
 ```{r get book data frame}
 book <- read.csv('../data/lab4/the_remains_of_the_day.csv')  # read book
 str(book)  # structure of data
@@ -85,7 +87,7 @@ sentiment_stats <- book_sentiment %>%
 
 df <- filter(sentiment_stats, Chapter=='Chapter 3')
 
-ggplot(df, aes(x = sentiment, y = sentiment_count,fill='red')) +
+ggplot(df, aes(x = sentiment, y = sentiment_count, fill = 'red')) +
   geom_col(show.legend = FALSE)
 
 
@@ -102,53 +104,91 @@ Furthermore, he proudly highlighted his skill in silver polishing at Darlington 
 Therefore, this chapter carries a predominantly positive tone with some negative sentiments due to the protagonist's social awkwardness and difficulty to adapt to different social situations.
 
 ### Word Clouds
-```{r}
-library(wordcloud)
-library(RColorBrewer)
+Here I use word clouds to visualize the frequency of words in the book. Here using the `with()` function, I will be able to directly call the attribute without doing a `$`.
+```{r plot word cloud}
 book_words %>%
-  anti_join(stop_words) %>%
-  count(word) %>%
-  with(wordcloud(word, n, max.words = 100))
+  anti_join(stop_words) %>%  # remove irrelevant stop words
+  count(word) %>%  # get counts of each unique word
+  with(wordcloud(word, n, max.words = 100))  # plot word cloud
+```
 
-library(reshape2)
+I also want to visualize the frequency of words related to sentiments.
+```{r plot comparison cloud}
 book_words %>%
-  inner_join(get_sentiments("bing")) %>%
-  filter(word != 'miss') %>%
-  count(word, sentiment, sort = TRUE) %>%
-  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
-  comparison.cloud(colors = c("gray20", "gray80"),
-                   max.words = 100)
+  inner_join(get_sentiments("bing")) %>%  # get sentiment words
+  filter(word != 'miss') %>%  # 'miss' in this book refers to Kenten but not a sentiment
+  count(word, sentiment, sort = TRUE) %>%  # get counts of each unique combination of word and sentiment
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%  # get word sentiment table, fill no data with 0
+  comparison.cloud(colors = c("gray20", "gray80"), max.words = 100)  # get comparison cloud
 ```
 
 ### Ambiguous Text Analysis
-"The Remains of the Day" by Kazuo Ishiguro is a novel rich in subtleties and nuances, and it contains several instances of ambiguous text that contribute to the complexity of the narrative. One example occurs in the interactions between the main character, Stevens, and Miss Kenton, the housekeeper. Throughout the novel, there is a subtle ambiguity in the nature of their relationship and the unspoken feelings between them.
+*The Remains of the Day* is a novel rich in ambiguous text that contribute to the complexity of the narrative. 
 
-For instance, when Stevens reminisces about his past experiences at Darlington Hall and his interactions with Miss Kenton, the text is imbued with a sense of restrained emotion and unspoken desires. The ambiguity lies in the reader's interpretation of whether there was a missed romantic connection between the two characters. The novel skillfully leaves this aspect open to interpretation, allowing readers to ponder the depth of their relationship and the unspoken feelings that may exist beneath the surface.
+For instance, when Stevens recalls his past experiences at Darlington Hall and his interactions with Miss Kenton, the text is imbued with a sense of restrained emotion and unspoken desires. 
 
-This ambiguity adds layers to the narrative, inviting readers to engage in a nuanced exploration of the characters' emotions and relationships. It exemplifies how the author uses ambiguity as a literary device to provoke thought and reflection, making "The Remains of the Day" a compelling and thought-provoking work.
+Also, Lord Darlington plays a role in facilitating political discussions that ultimately serve the interests of Nazi Germany. His actions, driven by a misguided sense of honor and a desire to prevent another war, lead him down a path of appeasement towards Nazi Germany. While discussing Lord Darlington, Stevens consistently portrays him as a decent and kind man, offering unwavering praise for his character. However, readers can discern subtle criticisms embedded in the text regarding Lord Darlington's political involvement and his problematic standpoint. 
 
-In the retrospect of Stevens, he recalled Lord Darlinton's attitude towards Jewish
+These ambiguity adds difficulty to sentiment analysis
 
-<span style="color:green">*I FEEL I should perhaps return a moment to the question of his lordship's attitude to Jewish persons, since this whole issue of anti Semitism, I realize, has become a rather sensitive one these days. In particular, let me clear up this matter of a supposed bar against Jewish persons on the staff at Darlington Hall. Since this allegation falls very directly into my own realm, I am able to refute it with absolute authority. There were many Jewish persons on my staff throughout all my years with his lordship, and let me say furthermore that they were never treated in any way differently on account of their race. One really cannot guess the reason for these absurd allegations - unless, quite ludicrously, they originate from that brief, entirely insignificant few weeks in the early thirties when Mrs Carolyn Barnet came to wield an unusual influence over his lordship.*</span>
+Here, I want to analyze, as Steven says, the 'turning point' in his career. This moment occurred when his father fell seriously ill. Despite the gravity of the situation, Stevens did not spend time companying his father due to an ongoing important international meeting at Darlington Hall. Although he was profoundly saddened during this time, he restrained himself and continued to serve the guests of Lord Darlington, maintaining the 'dignity' expected of a butler.
 
-<span style="color:green">*I call them 'incidents' but some of these were extremely minor. For instance, I recall overhearing at dinner one evening, when a particular newspaper had been mentioned, his lordship remarking: "Oh, you mean that Jewish propaganda sheet." And then on another occasion around that time, I remember his instructing me to cease giving donations to a particular local charity which regularly came to the door on the grounds that the management committee was 'more or less homogeneously Jewish'. I have remembered these remarks because they truly surprised me at the time, his lordship never previously having shown' any antagonism whatsoever towards the Jewish race.*</span>
+In his narration of this night, Stevens does not directly comment on his grief; he even expresses pride. However, as readers, we can sense the underlying self-doubt and sadness in his narrative.
+
+>[Of course, it is not for me to suggest that I am worthy of ever being placed alongside the likes of the 'great' butlers of our generation, such as Mr Marshall or Mr Lane - though it should be said there are those who, perhaps out of misguided generosity, tend to do just this. Let me make clear that when I say the conference of 1923, and that night in particular, constituted a turning point in my professional development, I am speaking very much in terms of my own more humble standards. Even so, if you consider the pressures contingent on me that night, you may not think I delude myself unduly if I go so far as to suggest that I did perhaps display, in the face of everything, at least in some degree a 'dignity' worthy of someone like Mr Marshall - or come to that, my father. Indeed, why should I deny it? For all its sad associations, whenever I recall that evening today, I find I do so with a large sense of triumph.]{style='color:green'}
+
+```{r get ambiguous paragraph}
+# get ambiguous paragraph
+amb_sentences <- book_sentences[1287:1291,]
+amb_words <- amb_sentences %>%
+  unnest_tokens(word, Content)
+```
+
 Using bing
-```{r}
+```{r ambiguous analysis using bing}
+amb_bing <- amb_words %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(Chapter, sentence_id, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
 
+# plot the result
+ggplot(amb_bing, aes(sentence_id, sentiment, fill = Chapter)) +
+  geom_col(show.legend = FALSE)
 ```
 
 Using nrc
-```{r}
+```{r ambiguous analysis using nrc}
+amb_nrc <- amb_words %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(Chapter, sentence_id, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
 
+emo_col <- names(amb_nrc)[4:ncol(amb_nrc)-1]  # get the sentiments in the paragraph
+test <- select(amb_nrc, all_of(emo_col))
+test <- pivot_longer(test, cols = everything(), names_to = "emotion", values_to = "count")
+test <- filter(test, count!=0)
+ungroup(test)
+test <- group_by(test,emotion)
+test <- count(test,emotion)
+with(test, wordcloud(emotion, n, min.freq=0,max.word=10))
+
+test %>%
+  ggplot(aes(x=emotion,y=n))+  # set X and Y values
+  geom_bar(stat='identity',fill='red')+  # set stat to show original count and fill color
+  labs(title='Wildfire Frequencies in Different Counties in CA, 2016-2018',  # set title
+       x='County',y='Wildfire Frequency')+  # set X Y axes labels
+  theme(axis.text.x = element_text(angle=90))  # set the rotation of X text to 90 degrees
 ```
 
 Using sentimentr
 ```{r}
-amb_text <- book_sentences[1599:1601,]
-amb_sentiment <- amb_text %>%
+amb_sentiment <- amb_sentences %>%
     sentiment_by('Content')%>%
   as.data.frame()
+amb_sentiment <- amb_sentiment %>% mutate(sentence = row_number())
+ggplot(amb_sentiment, aes(x=sentence,y=ave_sentiment)) +
+  geom_col(show.legend = FALSE)
 ```
-
-
 

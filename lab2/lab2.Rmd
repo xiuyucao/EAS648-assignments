@@ -2,7 +2,10 @@
 title: "LiDAR and Trees"
 author: "[Xiuyu Cao](https://github.com/xiuyucao)"
 date: "Oct 31, 2023"
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_float: true
 ---
 
 ******************************************************
@@ -190,7 +193,7 @@ plot(metrics['z_max'],pal=hcl.colors,pch=19,main='Tree Height Map (m)')
 ```
 
 ******************************************************
-## Applications
+## Application
 Using the tree metrics, we can do a lot of things including selecting the trees or doing tree based inventory. One interesting [application](https://www.sciencedirect.com/science/article/pii/S0034425723003711?casa_token=JhtyRO16F9cAAAAA:9kyyjwLegDiCe0d0-KCMeDeiZ954qH27Z3BbVqgCu5x3aThWzsFkxK-topS5hx5QJ2X24tcAIA) 
 I recently read is using the tree metrics to derive microclimate from macrocliamte, since trees have an effect on meterology indexes like temperature.
 

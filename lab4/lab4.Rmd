@@ -89,6 +89,7 @@ book_words %>%
   count(word) %>%  # get counts of each unique word
   with(wordcloud(word, n, max.words = 100))  # plot word cloud
 ```
+
 As shown from the word cloud, the words 'miss' and 'Kenton' are among the most frequently mentioned, revealing Steven's affection for Kenton.
 
 I also want to visualize the frequency of words related to sentiments.

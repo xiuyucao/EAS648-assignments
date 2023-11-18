@@ -2,7 +2,10 @@
 title: "Social Media Data Analysis"
 author: "[Xiuyu Cao](https://github.com/xiuyucao)"
 date: "Nov 6, 2023"
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_float: true
 ---
 
 ******************************************************

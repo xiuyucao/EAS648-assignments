@@ -15,9 +15,9 @@ library(tidytext)  # for getting sentiments and manipulating the text
 library(textdata)  # for getting lexicon
 library(ggplot2)  # for plotting graphs
 library(tidyverse)  # for manipulating the data
-library(sentimentr)  # for sentence analysis in sentences
+library(sentimentr)  # for sentence-based sentiment analysis
 library(wordcloud)  # for generating word clouds
-library(reshape2)  # for getting a matrix from data frame to plot comparison cloud
+library(reshape2)  # for generating matrix to plot comparison word cloud
 ```
 
 ******************************************************
@@ -54,14 +54,13 @@ get_sentiments('bing')  # Bing
 get_sentiments('nrc')  # NRC
 ```
 
-I will first use the `bing` lexicon to analyze the sentiment of the whole book since it is simple with only positive and negative evaluations inclusive with 6,786 words.
+I will first use the `bing` lexicon to analyze the sentiment of the whole book since it is simple with only positive and negative evaluations, at the same time inclusive with 6,786 words.
 
 ### Sentiment Analysis Using Bing
-Use the `dplyr::inner_join(x,y)` function to find the rows that exist in both tables.
 ```{r sentiment analysis nrc}
 # get the positive words 
 book_sentiment <- book_words %>%
-  inner_join(get_sentiments("bing")) %>%
+  inner_join(get_sentiments("bing")) %>%  # find the rows that exist in both tables
   count(Chapter, sentence_id, sentiment) %>%  # count in each group
   spread(sentiment, n, fill = 0) %>%  # spread the data
   mutate(sentiment = positive - negative)  # get sentence sentiment
@@ -72,13 +71,13 @@ ggplot(filter(book_sentiment), aes(sentence_id, sentiment, fill = Chapter)) +
   facet_wrap(~Chapter, scales = "free_x")  # set each plot using the most suitable x scale
 ```
 
-As can see in the plots, Chapter 4 has lots of positive sentiments and some negative. This is a really interesting chapter! In this chapter, Stevens recalls an incident where he stays at a local inn and was warmly welcomed. Seeking some social interaction, he descends to the bar and tries to engage in light banter and share a humorous comment on the landlord's wife's shouting, "A local variation on the cock crow, no doubt"， which is intended to be a witty remark, while the locals don't quite understand his humor nor respond positively. That night Stevens stayed up late reflecting on his humor, worrying about whether it is an affront. And he also reveals that he has been working on improving his bantering skills by listening to a radio program and practicing formulating witticisms based on his surroundings in order to pursuit meeting Mr. Farraday's expectations as well as adapting to different social situations.
+As can see in the plots, Chapter 4 has lots of positive sentiments and some negative ones. This is a really interesting chapter! In this chapter, Stevens recalls an incident where he stays at a local inn and was warmly welcomed. Seeking some social interaction, he descends to the bar and tries to engage in light banter and share a humorous comment on the landlord's wife's shouting, "A local variation on the cock crow, no doubt"， which is intended to be a witty remark, while the locals don't quite understand his humor nor respond positively. That night Stevens stayed up late reflecting on his humor, worrying about whether it is an affront. And he also reveals that he has been working on improving his bantering skills by listening to a radio program and practicing formulating witticisms based on his surroundings in order to pursuit meeting his new employer, Mr. Farraday's expectations as well as adapting to different social situations.
 
 We can feel from this passage Stevens is a meticulous and somewhat reserved professional. His character is defined by a combination of professionalism, social awkwardness, and sensitivity. The passage highlights his discomfort in social interactions and sensitivity to the reactions of others.
 
 Interesting psychological depiction!
 
-Furthermore, he proudly highlighted his skill in silver polishing at Darlington Hall, earning numerous praises from the notable guests of Lord Darlington, played a pivotal role in facilitating smooth negotiations between Lord Darlington and the guests. 
+Furthermore, he proudly highlighted his skill in silver polishing at Darlington Hall, which earns numerous praises from the notable guests of Lord Darlington, and plays a pivotal role in facilitating smooth negotiations between Lord Darlington and the guests. 
 
 Therefore, this chapter carries a predominantly positive tone with some negative sentiments due to the protagonist's social awkwardness and difficulty to adapt to different social situations.
 
@@ -109,7 +108,7 @@ For instance, when Stevens recalls his past experiences at Darlington Hall and h
 
 Also, Lord Darlington plays a role in facilitating political discussions that ultimately serve the interests of Nazi Germany. His actions, driven by a misguided sense of honor and a desire to prevent another war, lead him down a path of appeasement towards Nazi Germany. While discussing Lord Darlington, Stevens consistently portrays him as a decent and kind man, generously offering praise for him. However, readers can feel subtle criticisms in the text regarding Lord Darlington's problematic standpoint. 
 
-These ambiguity adds difficulty to sentiment analysis
+These ambiguity adds difficulty to sentiment analysis.
 
 Here, I want to analyze, as Steven says, the 'turning point' in his career. This moment occurred when his father fell seriously ill. Despite the situation, Stevens did not spend time accompanying his father due to an ongoing important international meeting at Darlington Hall. Although he was overwhelmed with grief during this time, he restrained himself and continued to serve the guests of Lord Darlington, maintaining the so-called 'dignity'.
 
@@ -172,14 +171,14 @@ ggplot(amb_sentr, aes(x=sentence,y=ave_sentiment)) +
 
 As shown in the graphs, using unigram-based sentiment analysis method only analyzes each word in the text. This approach may be more nuanced, capturing subtle emotional fluctuations in the text, as shown in the sentiment cloud generated by NRC analysis. However, it may also overlook context as it considers individual elements rather than the context of the entire sentence. While sentence analysis focuses on the overall emotional expression of an entire sentence or paragraph when processing text. It considers the relationships between words in a sentence and the context to capture the overall emotional trend. This approach emphasizes context and a better understanding of the overall meaning of the sentence but may overlook some subtle emotional changes.
 
-
+******************************************************
 ## Conclusion
 Sentiment analysis serves as a powerful tool in understanding textual data. Through unigram-based and sentence-based methods, I analyzed the sentiment in the book *The Remains of the Day*, revealing the overall sentiment of each chapter as well as the emotion in ambiguous paragraphs.
 
 While sentiment analysis has shown effectiveness, it is essential to acknowledge its shortcomings and challenges. When analyzing ambiguous text, although both unigram-based and sentence-based methods discerned the overall emotion in the text, they still have the following drawbacks:
 
 * Lack of Context: Unigram-based methods overlook the relationships between words and the overall context of a sentence, while sentence-based methods also do not consider the whole passage.
-* Different Tones: The same set of words can convey vastly different emotions depending on the tone in which they are presented or the context in which they are used. A seemingly neutral statement can take on a positive or negative connotation based on the surrounding words or the overall context.
-* Irony and Sarcasm: saying one thing may actually means the opposite. Failure to recognize such nuances can lead to misinterpretations and thus undermine the reliability of sentiment analysis. For instance, when Stevens mentioned a 'large sense of triumph,' it may, from the author's or reader's perspective, be a form of sarcasm.
+* Inability to Identify Different Tones: The same set of words can convey vastly different emotions depending on the tone in which they are presented or the context in which they are used. A seemingly neutral statement can take on a positive or negative connotation based on the surrounding words or the overall context.
+* Inability to Identify Irony and Sarcasm: saying one thing may actually means the opposite. Failure to recognize such nuances can lead to misinterpretations and thus undermine the reliability of sentiment analysis. For instance, when Stevens mentioned a 'large sense of triumph,' it may, from the author's or reader's perspective, be a form of sarcasm.
 
 In summary, sentiment analysis is a complex task, especially when handling ambiguous text. Combining different approaches with other NLP techniques and machine learning models to accommodate the diversity and complexity of the text can lead to a more accurate result.

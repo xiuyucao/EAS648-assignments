@@ -1,0 +1,19 @@
+---
+title: "Applied Spatial Analysis"
+author: "[Xiuyu Cao](https://github.com/xiuyucao)"
+date: "Nov 18, 2023"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+******************************************************
+## Needed Packages
+```{r import needed packages, message=F}
+
+```
+
+******************************************************
+## Introduction
+

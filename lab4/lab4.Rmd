@@ -21,10 +21,10 @@ library(reshape2)  # for getting a matrix from data frame to plot comparison clo
 ```
 
 ******************************************************
-## An Introduction to the Book
-The book I want to analyze is [*The Remains of the Day*](https://en.wikipedia.org/wiki/The_Remains_of_the_Day) by [Kazuo Ishiguro](https://en.wikipedia.org/wiki/Kazuo_Ishiguro). The book is set against the background of post-war England. It tells, in first-person narration, a story of a butler, Stevens, who has a long record of service at Darlington Hall, a grand estate. As he embarks on a journey to the West Country, he reflects on his decades of loyal service to Lord Darlington and examines the choices he made in the name of duty and professionalism. 
+## Introduction
+The book I want to analyze is [*The Remains of the Day*](https://en.wikipedia.org/wiki/The_Remains_of_the_Day) by [Kazuo Ishiguro](https://en.wikipedia.org/wiki/Kazuo_Ishiguro). It is set against the background of post-war England. It tells, in first-person narration, a story of a butler, Stevens, who has a long record of service at Darlington Hall. As he embarks on a journey to the West Country, he reflects on his decades of loyal service to Lord Darlington and examines the choices he made. 
 
-Ishiguro masterfully delves into themes of memory, regret, and the passage of time, creating a narrative that is both emotionally rich and thematically profound. What impresses me most is that Kazuo Ishiguro portrays a man with contradictions. Stevens loves Miss Kenton, another maid at Darlington Hall. He reads her letters repeatedly and drives thousands of miles only to see her. Additionally, as there are always meetings at Darlington Hall regarding the world situation, Stevens is well-informed about what is happening both in Darlington Hall and in the world. He even knows that his employer has deals with the Nazis. However, he never expresses his affection for Miss Kenton, and when people ask him about the world situation, he pretends to be ignorant. As a reader, I can feel his struggle through his elegant words. Although he experiences intense emotions, all he tries to do is follow his father’s will—to be a great butler. He restrains himself and ignores his employer’s problematic standpoint, which eventually leads to his estrangement from Kenton, as well as to Darlington's infamy.
+Ishiguro masterfully delves into themes of memory, regret, and the passage of time, creating a narrative that is both emotionally rich and thematically profound. What impresses me most is that Kazuo Ishiguro portrays a man with contradictions. Stevens loves Miss Kenton, another maid at Darlington Hall. He reads her letters repeatedly and drives thousands of miles only to see her. Additionally, as there are always meetings at Darlington Hall regarding the world situation, Stevens is well-informed about what is happening both in Darlington Hall and in the world. He even knows that his employer has deals with the Nazis. However, he never expresses his affection for Miss Kenton, and when people ask him about the world situation, he pretends to be ignorant in the name of being a good butler. As a reader, I can feel his struggle through his elegant words. Although he experiences intense emotions, all he tries to do is follow his father’s will -- to be a great butler. He restrains himself and ignores his employer’s problematic standpoint, which eventually leads to his estrangement from Kenton, as well as to Darlington's infamy.
 
 *The Remains of the Day* is characterized by Kazuo Ishiguro's exquisite and restrained prose. The language in the novel is marked by a sense of formality and precision, mirroring the protagonist Stevens' identity as a dedicated English butler. The author skillfully employs subtle nuances and understatements, allowing readers to glean deeper emotions and meaning beneath the surface, adding difficult to sentiment analysis, at the same time.
 
@@ -49,30 +49,30 @@ Sentiment analysis using lexicons is a technique that involves evaluating the se
 This approach considers the text as a combination of its individual words and the sentiment content of the whole text as the sum of the sentiment content of the individual words. It is a simple and straightforward algorithm, but it can introduce bias when the text includes instances of sarcasm or negated text, or when the text size has many paragraphs with both positive and negative sentiment that eventually average out to zero.
 ```{r three lexicons}
 # three different lexicons
-get_sentiments('afinn')
-get_sentiments('bing')
-get_sentiments('nrc')
+get_sentiments('afinn')  # AFINN
+get_sentiments('bing')  # Bing
+get_sentiments('nrc')  # NRC
 ```
 
-I will first use the `bing` lexicon to analyze the sentiment of the whole book since it is simple with only positive and negative evaluations and inclusive with 6,786 words.
+I will first use the `bing` lexicon to analyze the sentiment of the whole book since it is simple with only positive and negative evaluations inclusive with 6,786 words.
 
 ### Sentiment Analysis Using Bing
-Use the `dplyr::inner_join(x,y)` function, which returns all rows from `x` where there are matching values in `y`, and all columns from `x` and `y`. If there are multiple mathes between `x` and `y`, all combionation of the matches are returned. This is a mutating join.
+Use the `dplyr::inner_join(x,y)` function to find the rows that exist in both tables.
 ```{r sentiment analysis nrc}
 # get the positive words 
 book_sentiment <- book_words %>%
   inner_join(get_sentiments("bing")) %>%
-  count(Chapter, sentence_id, sentiment) %>%
-  spread(sentiment, n, fill = 0) %>%
-  mutate(sentiment = positive - negative)
+  count(Chapter, sentence_id, sentiment) %>%  # count in each group
+  spread(sentiment, n, fill = 0) %>%  # spread the data
+  mutate(sentiment = positive - negative)  # get sentence sentiment
 
 # plot the result
 ggplot(filter(book_sentiment), aes(sentence_id, sentiment, fill = Chapter)) +
-  geom_col(show.legend = FALSE) +
+  geom_col(show.legend = F) +  # hide chapter legend
   facet_wrap(~Chapter, scales = "free_x")  # set each plot using the most suitable x scale
 ```
 
-As can see in the plots, Chapter 4 has lots of positive sentiments and some negative. This is a really interesting chapter! In this chapter, Stevens recalls an incident where he stays at a local inn and was warmly welcomed. Seeking some social interaction, he descends to the bar and tries to engage in light banter and share a humorous comment, "A local variation on the cock crow, no doubt"， which is intended to be a witty remark, while the locals don't quite understand his humor nor respond positively. That night Stevens stayed up late reflecting on his humor, worrying about whether it is an affront to the household. And he also reveals that he has been working on improving his bantering skills by listening to a radio program and practicing formulating witticisms based on his surroundings in order to pursuit meeting Mr. Farraday's expectations as well as adapting to different social situations.
+As can see in the plots, Chapter 4 has lots of positive sentiments and some negative. This is a really interesting chapter! In this chapter, Stevens recalls an incident where he stays at a local inn and was warmly welcomed. Seeking some social interaction, he descends to the bar and tries to engage in light banter and share a humorous comment on the landlord's wife's shouting, "A local variation on the cock crow, no doubt"， which is intended to be a witty remark, while the locals don't quite understand his humor nor respond positively. That night Stevens stayed up late reflecting on his humor, worrying about whether it is an affront. And he also reveals that he has been working on improving his bantering skills by listening to a radio program and practicing formulating witticisms based on his surroundings in order to pursuit meeting Mr. Farraday's expectations as well as adapting to different social situations.
 
 We can feel from this passage Stevens is a meticulous and somewhat reserved professional. His character is defined by a combination of professionalism, social awkwardness, and sensitivity. The passage highlights his discomfort in social interactions and sensitivity to the reactions of others.
 
@@ -113,7 +113,7 @@ These ambiguity adds difficulty to sentiment analysis
 
 Here, I want to analyze, as Steven says, the 'turning point' in his career. This moment occurred when his father fell seriously ill. Despite the situation, Stevens did not spend time accompanying his father due to an ongoing important international meeting at Darlington Hall. Although he was overwhelmed with grief during this time, he restrained himself and continued to serve the guests of Lord Darlington, maintaining the so-called 'dignity'.
 
-In the following paragraph, however, Stevens does not directly comment on his grief; he even expresses pride. As readers though, we can sense the underlying self-doubt and sadness in his narrative.
+In the following paragraph, Stevens does not directly comment on his grief; he even expresses pride. As readers though, we can sense the underlying self-doubt and sadness in his narrative.
 
 >[Of course, it is not for me to suggest that I am worthy of ever being placed alongside the likes of the 'great' butlers of our generation, such as Mr Marshall or Mr Lane - though it should be said there are those who, perhaps out of misguided generosity, tend to do just this. Let me make clear that when I say the conference of 1923, and that night in particular, constituted a turning point in my professional development, I am speaking very much in terms of my own more humble standards. Even so, if you consider the pressures contingent on me that night, you may not think I delude myself unduly if I go so far as to suggest that I did perhaps display, in the face of everything, at least in some degree a 'dignity' worthy of someone like Mr Marshall - or come to that, my father. Indeed, why should I deny it? For all its sad associations, whenever I recall that evening today, I find I do so with a large sense of triumph.]{style='color:green'}
 
@@ -131,47 +131,55 @@ amb_nrc <- amb_words %>%
   count(Chapter, sentence_id, sentiment) %>%
   spread(sentiment, n, fill = 0) %>%
   mutate(sentiment = positive - negative)
+# plot
+amb_nrc %>%
+  mutate(sentence=row_number()) %>%
+  ggplot(aes(sentence, sentiment)) +
+  geom_col(fill='red',show.legend=F) +
+  labs(title='Ambiguous Text Sentiment Analysis Using NRC',
+       x='Sentence Number', y='Sentiment')
 
-ggplot(amb_nrc, aes(sentence_id, sentiment, fill = Chapter)) +
-  geom_col(show.legend = FALSE)
+# get sentiment cloud
+sent_col <- names(amb_nrc)[4:ncol(amb_nrc)-1]  # get the sentiments in the paragraph
+sent_count <- amb_nrc %>%
+  select(all_of(sent_col)) %>%  # leave only sentiment columns
+  pivot_longer(cols = everything(), names_to = "sentiment", values_to = "count") %>%  # get long format
+  filter(count != 0) %>%  # remove sentiment of 0 count
+  group_by(sentiment) %>%  # group sentiment
+  summarize(count=sum(count))  # get sum of each sentiment
 
-emo_col <- names(amb_nrc)[4:ncol(amb_nrc)-1]  # get the sentiments in the paragraph
-test <- select(amb_nrc, all_of(emo_col))
-test <- pivot_longer(test, cols = everything(), names_to = "emotion", values_to = "count")
-test <- filter(test, count!=0)
-ungroup(test)
-test <- group_by(test,emotion)
-test <- count(test,emotion)
-with(test, wordcloud(emotion, n, min.freq=0,max.word=10))
-
-test %>%
-  ggplot(aes(x=emotion,y=n))+  # set X and Y values
-  geom_bar(stat='identity',fill='red')+  # set stat to show original count and fill color
-  labs(title='Wildfire Frequencies in Different Counties in CA, 2016-2018',  # set title
-       x='County',y='Wildfire Frequency')+  # set X Y axes labels
-  theme(axis.text.x = element_text(angle=90))  # set the rotation of X text to 90 degrees
+with(sent_count, wordcloud(sentiment,count,min.freq=0,max.word=20))  # plot sentiment cloud
+# plot
+sent_count %>%
+  ggplot(aes(x=sentiment,y=count))+  # set X and Y values
+  geom_col(fill='red')+  # set stat to show original count and fill color
+  labs(title='Sentiment Frequency Using NRC',  # set title
+       x='Sentiment',y='Frequency')  # set X Y axes labels
 ```
 
+Sentiment analysis solely based on unigrams might overlook the actual sentiment of an entire sentence. Therefore, to gain a more comprehensive understanding of sentence-level sentiment, one option is to utilize more sophisticated algorithms. Here I use the `sentimentr` package to deploy a sentence-level sentiment analysis.
 ```{r ambiguous analysis using sentimentr}
 # sentiment analysis using sentimentr
-amb_sentiment <- amb_sentences %>%
-    sentiment_by('Content')%>%
-  as.data.frame()
-amb_sentiment <- amb_sentiment %>% mutate(sentence = row_number())
-ggplot(amb_sentiment, aes(x=sentence,y=ave_sentiment)) +
-  geom_col(show.legend = FALSE)
+amb_sentr <- amb_sentences %>%
+  sentiment_by('Content') %>%  # do the sentence-level sentiment analysis
+  mutate(sentence=row_number())
+# plot
+ggplot(amb_sentr, aes(x=sentence,y=ave_sentiment)) +
+  geom_col(fill='red') +
+  labs(title='Sentence-based Ambiguous Text Sentiment Analysis',
+       x='Sentence Number', y='Sentiment')
 ```
 
-As shown in the graphs, using lexicons like Bing or NRC only analyzes each word in the text. This approach may be more nuanced, capturing subtle emotional fluctuations in the text, like the word cloud generated by NRC analysis. However, it may also overlook context as it considers individual elements rather than the context of the entire sentence. While sentence analysis focuses on the overall emotional expression of an entire sentence or paragraph when processing text. It considers the relationships between words in a sentence and the context to capture the overall emotional trend. This approach emphasizes context and a better understanding of the overall meaning of the sentence but may overlook some subtle emotional changes.
+As shown in the graphs, using unigram-based sentiment analysis method only analyzes each word in the text. This approach may be more nuanced, capturing subtle emotional fluctuations in the text, as shown in the sentiment cloud generated by NRC analysis. However, it may also overlook context as it considers individual elements rather than the context of the entire sentence. While sentence analysis focuses on the overall emotional expression of an entire sentence or paragraph when processing text. It considers the relationships between words in a sentence and the context to capture the overall emotional trend. This approach emphasizes context and a better understanding of the overall meaning of the sentence but may overlook some subtle emotional changes.
 
 
 ## Conclusion
 Sentiment analysis serves as a powerful tool in understanding textual data. Through unigram-based and sentence-based methods, I analyzed the sentiment in the book *The Remains of the Day*, revealing the overall sentiment of each chapter as well as the emotion in ambiguous paragraphs.
 
-While sentiment analysis has proven invaluable, it is essential to acknowledge its shortcomings and challenges. When analyzing ambiguous text, although both unigram-based and sentence-based methods discerned the overall emotion in the text, they still have the following drawbacks:
+While sentiment analysis has shown effectiveness, it is essential to acknowledge its shortcomings and challenges. When analyzing ambiguous text, although both unigram-based and sentence-based methods discerned the overall emotion in the text, they still have the following drawbacks:
 
 * Lack of Context: Unigram-based methods overlook the relationships between words and the overall context of a sentence, while sentence-based methods also do not consider the whole passage.
 * Different Tones: The same set of words can convey vastly different emotions depending on the tone in which they are presented or the context in which they are used. A seemingly neutral statement can take on a positive or negative connotation based on the surrounding words or the overall context.
-* Irony and Sarcasm: These rhetorical devices involve saying one thing while meaning the opposite. Failure to recognize such nuances can lead to misinterpretations and undermine the reliability of sentiment analysis. For instance, when Stevens mentioned a 'large sense of triumph,' it may, from the author's or reader's perspective, be a form of sarcasm.
+* Irony and Sarcasm: saying one thing may actually means the opposite. Failure to recognize such nuances can lead to misinterpretations and thus undermine the reliability of sentiment analysis. For instance, when Stevens mentioned a 'large sense of triumph,' it may, from the author's or reader's perspective, be a form of sarcasm.
 
-In summary, sentiment analysis is a complex task, especially when handling ambiguous text. Combining different approaches with other NLP techniques and machine learning models to accommodate the diversity and complexity of fuzzy text can lead to a more accurate result.
+In summary, sentiment analysis is a complex task, especially when handling ambiguous text. Combining different approaches with other NLP techniques and machine learning models to accommodate the diversity and complexity of the text can lead to a more accurate result.

@@ -6,14 +6,220 @@ output:
   html_document:
     toc: true
     toc_float: true
+    toc_depth: 4
 ---
 
 ******************************************************
 ## Needed Packages
 ```{r import needed packages, message=F}
-
+library(terra)  # for working with rasters data
+library(tidyverse)  # for manipulating the data
 ```
 
 ******************************************************
 ## Introduction
+* Spatial Analysis simplifies the huge amount of detailed information in order to extract the main trends
+* Spatial dependency leads to spatial autocorrelation, which violates standard statistical techniques that assume independence among observations
+  * Positive Spatial Autocorrelation
+  * Negative Spatial Autocorrelation
+* spatial regression models capture the relationships and do not suffer from these weaknesses, but are computationally intensive
+* It is also appropriate to view spatial dependency as a source of information rather than something to be corrected
+* Spatial Autocorrelation Statistics measure and analyze the degree of dependency among observations in a geographic space. 
 
+
+******************************************************
+## Salt Lake City
+Salt Lake City, Utah has experienced significant urban development in recent decades, marked by substantial population growth, immigration, and increased housing demand. This surge has led to a notable 17.6 percent increase in urban impervious development from 2002 to 2010.
+
+
+### Data Read-in
+```{r read data}
+# land cover type data
+NLCD_2001 <- rast("../data/lab5/NLCD_2001_SL.tif")
+NLCD_2004 <- rast("../data/lab5/NLCD_2004_SL.tif")
+NLCD_2006 <- rast("../data/lab5/NLCD_2006_SL.tif")
+NLCD_2008 <- rast("../data/lab5/NLCD_2008_SL.tif")
+NLCD_2011 <- rast("../data/lab5/NLCD_2011_SL.tif")
+NLCD_2013 <- rast("../data/lab5/NLCD_2013_SL.tif")
+NLCD_2016 <- rast("../data/lab5/NLCD_2016_SL.tif")
+# distance to parks and protected areas in km (Euclidean) for the study area
+Park_dist <- rast("../data/lab5/Parks_dist_SL.tif")
+# road density for a 1 km neighborhood
+Rd_dns1km <- rast("../data/lab5/Rd_dns1km_SL.tif")
+# distance to water bodies in km (Euclidean)
+WaterDist <- rast("../data/lab5/WaterDist_SL.tif")
+# elevation
+DEM <- rast("../data/lab5/DEM_SL.tif")
+# check the data
+NLCD_2001
+plot(NLCD_2001)
+plot(DEM)
+```
+
+### Building a Geospatial Database
+In order to do an spatial analysis, I need to first stack the raster layers with the same resolution and extent using the function `c()` in the `terra` package. 
+```{r}
+# combine the raster layers
+allrasters <- c(NLCD_2001, NLCD_2004, NLCD_2006, NLCD_2008, NLCD_2011, NLCD_2013, NLCD_2016, Park_dist, Rd_dns1km, WaterDist, DEM)
+allrastersSL <- as.data.frame(allrasters, xy=TRUE)
+## Here we are filtering out the no data values (stored as 128)
+allrastersSL <- allrastersSL %>%
+  filter (NLCD_2001_SL != 128)
+head(allrastersSL)
+```
+
+### Sampling
+Because of the huge amount of data, a random sample is needed to do the further analysis. When doing the sampling, many factors have to be taken into consideration.
+
+In sampling a geospatial dataset many factors have to be taken into consideration including sample size, representativeness, sample bias, temporal factors, edge effects, level of aggregated, data collection methodology (procedures and equipment), sampling order or arrangement, and population representativeness. In general, the full range of classical sampling issues must be considered coupled with some specifically spatial factors.
+
+Here I use the random sample function to grab a spatial random sample sampleRandom(). Here we are random sampling 100 point for the Salt Lake region. sampleRandom() works different than sample(). sample() sample returns an index of rows that still need to be obtained(see below). Here we are using xy=TRUE and sp=TRUE to return the spatial data.
+```{r random sample}
+sampleSLrnd <- allrasters %>%
+  spatSample(size=100, "random", cells=TRUE, xy=TRUE) %>%
+  filter(NLCD_2001_SL != 128)
+head(sampleSLrnd)
+
+plot(sampleSLrnd$x, sampleSLrnd$y)
+```
+
+### Accessing the Dataset
+It is always a good idea to look at our data to assess that it adheres to statistical norms (e.g. normal distribution). We can use the simple summary() and hist() functions to evaluate data. Patterns similar?
+```{r}
+hist(allrastersSL$DEM_SL)
+hist(sampleSLrnd$DEM_SL)
+```
+
+#### Spatial Autocorrelation
+assess spatial dependency. First we need to transform the data into spatial weights matrix that indicates the geographic relationship between observations. With our matrix, we can assess the specific spatial autocorrelation of our independent variables. We will simply use Moran’s I, which is the most widely use.
+```{r}
+# calculate distances between all the points
+flat_data <- sampleSLrnd
+dist_matrix <- as.matrix(dist(cbind(flat_data$x, flat_data$y)))
+# and generate a matrix of inverse distance weights.
+dist_matix.inv <- 1/dist_matrix
+diag(dist_matix.inv) <- 0
+
+# Use the ape package to measure spatial autocorrelation of the variables
+library(ape)
+Moran.I(sampleSLrnd$Rd_dns1km_SL, dist_matix.inv)
+# Moran.I(na.omit(sampleSLrnd$Rd_dns1km_SL), dist_matix.inv)
+```
+
+### Statistical Analysis
+identify the pixels that have change to urban classes between 2001 and 2016.
+```{r}
+allrastersSL <- allrastersSL %>%
+    mutate(urbanChg = (NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) &  (NLCD_2016_SL == 21 | NLCD_2016_SL == 22  | NLCD_2016_SL == 23 | NLCD_2016_SL == 24))
+# plot
+ggplot(allrastersSL, aes(y=y, x=x, color=urbanChg)) +
+   geom_point(size=2, shape=15) +
+   theme() 
+```
+
+How much change did Salt Lake experience from 2001 to 2016:
+```{r}
+## calculate total new urban impervious for 2016
+newUrban <- (sum(as.numeric(allrastersSL$NLCD_2016_SL == 21 | allrastersSL$NLCD_2016_SL == 22 |allrastersSL$NLCD_2016_SL == 23 | allrastersSL$NLCD_2016_SL == 24))) - (sum(as.numeric(allrastersSL$NLCD_2001_SL == 21| allrastersSL$NLCD_2001_SL == 22| allrastersSL$NLCD_2001_SL == 23| allrastersSL$NLCD_2001_SL == 24)))
+## calculate total urban impervious for 2001
+urban2001 <- (sum(as.numeric(allrastersSL$NLCD_2001_SL == 21| allrastersSL$NLCD_2001_SL == 22| allrastersSL$NLCD_2001_SL == 23| allrastersSL$NLCD_2001_SL == 24)))
+## percentage increase in urban impervious
+newUrban/urban2001* 100
+```
+
+compare means and plot the variance between newly developed urban areas and the different variables. Let’s look at the influence of the distance to protected areas.
+```{r}
+allrastersSL %>%
+  filter(NLCD_2001_SL != 21| NLCD_2001_SL != 22| NLCD_2001_SL != 23| NLCD_2001_SL != 24) %>%
+ggplot(aes(x=urbanChg, y=Parks_dist_SL)) + 
+  geom_boxplot()
+```
+
+Let’s look at the mean and variance of the variables that might shape where there is new development. We have to reshape the data to achieve this.
+```{r}
+library(reshape2)
+SL <- allrastersSL %>%
+  filter(NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) 
+SL <- SL[10:14]
+SLmelt<-melt(SL)
+# plot
+p <- ggplot(SLmelt, aes(x=urbanChg, y=value,fill=variable))+
+    geom_boxplot()+
+    facet_grid(.~variable)+
+    labs(x="X (binned)")+
+    theme(axis.text.x=element_text(angle=-90, vjust=0.4,hjust=1))
+p
+```
+
+### General Linear Models
+The generalized linear model (GLM) is a flexible generalization of ordinary linear regression that allows for response variables that have error non-normal distributions. The GLM generalizes linear regression by allowing the linear model to be related to the response variable via a link function and by allowing the magnitude of the variance of each measurement to be a function of its predicted value.
+
+Ordinary linear regression predicts the expected value of a given unknown quantity (the response variable, a random variable) as a linear combination of a set of observed values (predictors). This implies that a constant change in a predictor leads to a constant change in the response variable (i.e. a linear-response model). This is appropriate when the response variable has a normal distribution (intuitively, when a response variable can vary essentially indefinitely in either direction with no fixed “zero value”, or more generally for any quantity that only varies by a relatively small amount, e.g. human heights).
+
+Use The sample() function draw a random number indexes representing the rows of a dataframe. In cases where we have many absence data (area that were not develop) and few presence (developed), a common procedure is to retain all presence data and taking a smaller randomly sample of the absence. A ratio of 1:2 is common, but this is not a rule, and other ratios can be used and are often tested.
+```{r}
+###Grab all the developed cells (presence)
+newUrban <- SL %>%
+  filter(urbanChg == TRUE)
+
+###Grab all the nondeveloped and not previously urban cells (absence)
+nonUrban <- SL %>%
+  filter(urbanChg == FALSE)
+
+###Get a random sample of the absence data  
+### that is twice as large as the presence data
+index <- sample(1:nrow(nonUrban), (round(nrow(newUrban)* 2)))
+SLsampleUrban <- nonUrban[index, ]
+
+### combine the orginal presence and absence data
+SLsample2 <- cbind(SLsampleUrban, newUrban)
+SLsample <- rbind(SLsampleUrban, newUrban)
+
+###Consider a train and testing sample by futher subsampling the data
+index <- sample(1:nrow(SL), (round(nrow(SL)* 0.01)))
+SLsample <- SL[index, ]
+
+###Consider making a training and testing dataset
+###This can reduce the computational burden 
+### It also is a robust goodness of fit method
+#SLsample <- SLsample %>% dplyr::mutate(id = row_number())
+#Create training set
+#train <- SLsample %>% sample_frac(.70)
+#Create test set
+#test  <- anti_join(SLsample, train, by = 'id')
+```
+Now that we have a sample, we can fit a model. Fitting a model in always uses the same format. You specify the type of model (e.g. lm, glm), then in brackets define the dependent variable followed by the ~ (tilde). After the tilde you name each of the independent variables with + between them. When these are defined, you use a comma and indicate the data and other specification like the model family you want to use (e.g. binomial, poisson, negative binomial)
+```{r}
+fit <- glm(urbanChg ~ Parks_dist_SL + Rd_dns1km_SL + WaterDist_SL + DEM_SL,data=SLsample,family=binomial())
+summary(fit)
+```
+
+#### Interpreting the Model
+
+
+#### Goodness of Fit
+Check the fit of the model by calculating the Area under the curve and the ROC.
+```{r}
+## Loading required package: gplots
+library(ROCR)
+# plot a ROC curve for a single prediction run
+# and color the curve according to cutoff.
+pred <- prediction(predict(fit), SLsample$urbanChg)
+perf <- performance(pred,"tpr","fpr")
+plot(perf,colorize=TRUE)
+```
+```{r}
+## A simpler way to understand these result is to calculate the
+## area under the curve(AUC). The closer this number is to 1, the
+## better your model fit
+auc_ROCR <- performance(pred, measure = "auc")
+auc_ROCR <- auc_ROCR@y.values[[1]]
+auc_ROCR
+```
+
+#### Using the Model to Predict Likely Locations of Development
+Use the predictors to estimate for each pixel the probability of development given our model
+```{r}
+predicted <- predict(allrasters, fit)
+plot(predicted)
+```

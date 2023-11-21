@@ -12,8 +12,10 @@ output:
 ******************************************************
 ## Needed Packages
 ```{r import needed packages, message=F}
-library(terra)  # for working with rasters data
+library(terra)  # for working with raster data
 library(tidyverse)  # for manipulating the data
+library(ape)  # for getting autocorrelation coefficient
+library(reshape2)  # for reshaping data frames
 ```
 
 ******************************************************
@@ -24,17 +26,17 @@ library(tidyverse)  # for manipulating the data
   * Negative Spatial Autocorrelation
 * spatial regression models capture the relationships and do not suffer from these weaknesses, but are computationally intensive
 * It is also appropriate to view spatial dependency as a source of information rather than something to be corrected
-* Spatial Autocorrelation Statistics measure and analyze the degree of dependency among observations in a geographic space. 
+* Spatial Autocorrelation Statistics measure and analyze the degree of dependency among observations in a geographic space.
 
 
 ******************************************************
 ## Salt Lake City
-Salt Lake City, Utah has experienced significant urban development in recent decades, marked by substantial population growth, immigration, and increased housing demand. This surge has led to a notable 17.6 percent increase in urban impervious development from 2002 to 2010.
+In recent decades, Salt Lake City, Utah, has undergone considerable urban development characterized by substantial population growth, immigration, and heightened housing demand. This expansion has resulted in a noteworthy 17.6 percent rise in impervious urban development from 2002 to 2010.
 
-
-### Data Read-in
+### Read Data
+First read in the data I will be using to analyze the Salt Lake City. They are raster data of the same resolution and extent. Based on that, they can be combined into a list using the function `terra::c()`, and further turned into a data frame.
 ```{r read data}
-# land cover type data
+# land use data
 NLCD_2001 <- rast("../data/lab5/NLCD_2001_SL.tif")
 NLCD_2004 <- rast("../data/lab5/NLCD_2004_SL.tif")
 NLCD_2006 <- rast("../data/lab5/NLCD_2006_SL.tif")
@@ -42,7 +44,7 @@ NLCD_2008 <- rast("../data/lab5/NLCD_2008_SL.tif")
 NLCD_2011 <- rast("../data/lab5/NLCD_2011_SL.tif")
 NLCD_2013 <- rast("../data/lab5/NLCD_2013_SL.tif")
 NLCD_2016 <- rast("../data/lab5/NLCD_2016_SL.tif")
-# distance to parks and protected areas in km (Euclidean) for the study area
+# distance to parks and protected areas (km)
 Park_dist <- rast("../data/lab5/Parks_dist_SL.tif")
 # road density for a 1 km neighborhood
 Rd_dns1km <- rast("../data/lab5/Rd_dns1km_SL.tif")
@@ -50,105 +52,115 @@ Rd_dns1km <- rast("../data/lab5/Rd_dns1km_SL.tif")
 WaterDist <- rast("../data/lab5/WaterDist_SL.tif")
 # elevation
 DEM <- rast("../data/lab5/DEM_SL.tif")
-# check the data
-NLCD_2001
-plot(NLCD_2001)
-plot(DEM)
-```
-
-### Building a Geospatial Database
-In order to do an spatial analysis, I need to first stack the raster layers with the same resolution and extent using the function `c()` in the `terra` package. 
-```{r}
 # combine the raster layers
 allrasters <- c(NLCD_2001, NLCD_2004, NLCD_2006, NLCD_2008, NLCD_2011, NLCD_2013, NLCD_2016, Park_dist, Rd_dns1km, WaterDist, DEM)
-allrastersSL <- as.data.frame(allrasters, xy=TRUE)
-## Here we are filtering out the no data values (stored as 128)
-allrastersSL <- allrastersSL %>%
-  filter (NLCD_2001_SL != 128)
-head(allrastersSL)
+
+allrasters[[1]]  # check the data
+plot(allrasters[[1]])  # check the data
+
+# turn it into a data frame
+allrasters.df <- allrasters %>%
+  as.data.frame(xy=T) %>%  # transform to a data frame
+  filter(NLCD_2001_SL != 128)  # remove no data value (stored as 128)
+head(allrasters.df)
 ```
 
 ### Sampling
-Because of the huge amount of data, a random sample is needed to do the further analysis. When doing the sampling, many factors have to be taken into consideration.
+```{r show how many rows}
+nrow(allrasters.df)  # get the row number of the data frame
+```
+Because of the huge amount of data, a random sample is needed to do the further analysis.
 
-In sampling a geospatial dataset many factors have to be taken into consideration including sample size, representativeness, sample bias, temporal factors, edge effects, level of aggregated, data collection methodology (procedures and equipment), sampling order or arrangement, and population representativeness. In general, the full range of classical sampling issues must be considered coupled with some specifically spatial factors.
-
-Here I use the random sample function to grab a spatial random sample sampleRandom(). Here we are random sampling 100 point for the Salt Lake region. sampleRandom() works different than sample(). sample() sample returns an index of rows that still need to be obtained(see below). Here we are using xy=TRUE and sp=TRUE to return the spatial data.
+Using the function `spatSample()` in the `terra` package, a random sample can be deployed by setting the `method` parameter to `random`. Here I sample 100 points for the Salt Lake region.
 ```{r random sample}
 sampleSLrnd <- allrasters %>%
-  spatSample(size=100, "random", cells=TRUE, xy=TRUE) %>%
-  filter(NLCD_2001_SL != 128)
-head(sampleSLrnd)
-
-plot(sampleSLrnd$x, sampleSLrnd$y)
+  spatSample(size=100, method="random", cells=TRUE, xy=TRUE) %>%  # do random sample
+  filter(NLCD_2001_SL != 128)  # remove no data value
+# plot sample points
+plot(sampleSLrnd$x, sampleSLrnd$y,
+     main='Random Sample points', xlab='X (m)', ylab='Y (m)')
 ```
 
 ### Accessing the Dataset
-It is always a good idea to look at our data to assess that it adheres to statistical norms (e.g. normal distribution). We can use the simple summary() and hist() functions to evaluate data. Patterns similar?
-```{r}
-hist(allrastersSL$DEM_SL)
-hist(sampleSLrnd$DEM_SL)
+To assess my sampling result, first check the histogram of the original data and the sampled data.
+```{r compare histogram}
+par(mfrow=c(2, 5),  # set 2*5 sub plots
+    mar=c(4, 4, 0.8, 0.65))  # set bottom, left, top, right margin
+
+title=c('LandUse16','Park Dist', 'Road Dense', 'Water Dist', 'DEM')  # set title
+
+for (i in 9:13) {  # plot orignal on the first row
+  hist(allrasters.df[, i], main=title[i-8], xlab=NA, col='plum1', ylab=ifelse(i==9,'Frequency (Original)',NA))
+}
+for (i in 9:13){  # plot sampled on the second row
+  hist(sampleSLrnd[, i+1], main=NA, xlab="Value", col='skyblue', ylab=ifelse(i==9,'Frequency (Sampled)',NA))
+}
+
+par(mfrow=c(1, 1))  # set graphic parameter to normal
 ```
 
-#### Spatial Autocorrelation
-assess spatial dependency. First we need to transform the data into spatial weights matrix that indicates the geographic relationship between observations. With our matrix, we can assess the specific spatial autocorrelation of our independent variables. We will simply use Moran’s I, which is the most widely use.
-```{r}
-# calculate distances between all the points
-flat_data <- sampleSLrnd
-dist_matrix <- as.matrix(dist(cbind(flat_data$x, flat_data$y)))
-# and generate a matrix of inverse distance weights.
-dist_matix.inv <- 1/dist_matrix
-diag(dist_matix.inv) <- 0
+Also, I want to check the spatial autocorrelation. To assess spatial dependency. First get distance matrix, then assess the specific spatial autocorrelation using Moran’s I, which is the most widely use.
+```{r assess spatial dependency}
+dist_mat <- as.matrix(dist(cbind(sampleSLrnd$x, sampleSLrnd$y)))  # get distance matrix
+dist_mat.i <- 1/dist_mat  # get reciprocal distance matrix
+diag(dist_mat.i) <- 0  # set diagonal to 0
 
-# Use the ape package to measure spatial autocorrelation of the variables
-library(ape)
-Moran.I(sampleSLrnd$Rd_dns1km_SL, dist_matix.inv)
-# Moran.I(na.omit(sampleSLrnd$Rd_dns1km_SL), dist_matix.inv)
+raster_names <- names(sampleSLrnd)[4:ncol(sampleSLrnd)]
+raster_names <- data.frame(Raster_Name = raster_names)
+Moran_res <- data.frame()
+for(i in 4:ncol(sampleSLrnd)){
+  Moran_res <- rbind(Moran_res, Moran.I(sampleSLrnd[,i], dist_mat.i))
+}
+cbind(raster_names, Moran_res)
 ```
+From the result, the expected value is -0.01 while the observed value is 0.19, indicating the moderate positive spatial autocorrelation. Similar values are clustered together in space
+
+A Moran's I value of 0.19 indicates positive spatial autocorrelation, meaning that similar values are clustered together in space. The Moran's I statistic ranges from -1 to 1, where:
+
+If Moran's I is close to 1, it suggests strong positive spatial autocorrelation.
+If Moran's I is close to -1, it suggests strong negative spatial autocorrelation.
+If Moran's I is close to 0, it suggests spatial randomness.
+In your case, with a Moran's I value of 0.19, the positive sign indicates that nearby locations tend to have similar values. The magnitude (0.19) suggests a moderate degree of spatial autocorrelation. Researchers or analysts would typically interpret this value in the context of the specific study and the characteristics of the data. It implies that there is some level of clustering or pattern in the spatial distribution of the variable being analyzed.
 
 ### Statistical Analysis
-identify the pixels that have change to urban classes between 2001 and 2016.
+identify the pixels that were not urban area in 2001 but have changed to urban area by 2016.
 ```{r}
-allrastersSL <- allrastersSL %>%
-    mutate(urbanChg = (NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) &  (NLCD_2016_SL == 21 | NLCD_2016_SL == 22  | NLCD_2016_SL == 23 | NLCD_2016_SL == 24))
+allrasters.df <- allrasters.df %>%  # get urbanChg: whether changed to urban area from 2001 to 2016
+  mutate(urbanChg = (NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) & (NLCD_2016_SL == 21 | NLCD_2016_SL == 22  | NLCD_2016_SL == 23 | NLCD_2016_SL == 24))
 # plot
-ggplot(allrastersSL, aes(y=y, x=x, color=urbanChg)) +
+ggplot(allrasters.df, aes(y=y, x=x, color=urbanChg)) +
    geom_point(size=2, shape=15) +
-   theme() 
+   theme()
 ```
 
+**********************************************************************
 How much change did Salt Lake experience from 2001 to 2016:
+`as.numeric()` converts the logical vector obtained in the previous step to a numeric vector, where TRUE is converted to 1 and FALSE is converted to 0.
+`sum()` calculates the sum of the numeric vector obtained in the previous step
 ```{r}
 ## calculate total new urban impervious for 2016
-newUrban <- (sum(as.numeric(allrastersSL$NLCD_2016_SL == 21 | allrastersSL$NLCD_2016_SL == 22 |allrastersSL$NLCD_2016_SL == 23 | allrastersSL$NLCD_2016_SL == 24))) - (sum(as.numeric(allrastersSL$NLCD_2001_SL == 21| allrastersSL$NLCD_2001_SL == 22| allrastersSL$NLCD_2001_SL == 23| allrastersSL$NLCD_2001_SL == 24)))
+newUrban <- with(allrasters.df,(sum(as.numeric(NLCD_2016_SL == 21 | NLCD_2016_SL == 22 | NLCD_2016_SL == 23 | NLCD_2016_SL == 24))) - (sum(as.numeric(NLCD_2001_SL == 21| NLCD_2001_SL == 22| NLCD_2001_SL == 23| NLCD_2001_SL == 24))))
 ## calculate total urban impervious for 2001
-urban2001 <- (sum(as.numeric(allrastersSL$NLCD_2001_SL == 21| allrastersSL$NLCD_2001_SL == 22| allrastersSL$NLCD_2001_SL == 23| allrastersSL$NLCD_2001_SL == 24)))
+urban2001 <- with(allrasters.df,(sum(as.numeric(NLCD_2001_SL == 21| NLCD_2001_SL == 22| NLCD_2001_SL == 23| NLCD_2001_SL == 24))))
 ## percentage increase in urban impervious
 newUrban/urban2001* 100
 ```
 
 compare means and plot the variance between newly developed urban areas and the different variables. Let’s look at the influence of the distance to protected areas.
-```{r}
-allrastersSL %>%
-  filter(NLCD_2001_SL != 21| NLCD_2001_SL != 22| NLCD_2001_SL != 23| NLCD_2001_SL != 24) %>%
-ggplot(aes(x=urbanChg, y=Parks_dist_SL)) + 
-  geom_boxplot()
-```
 
 Let’s look at the mean and variance of the variables that might shape where there is new development. We have to reshape the data to achieve this.
 ```{r}
-library(reshape2)
-SL <- allrastersSL %>%
-  filter(NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) 
-SL <- SL[10:14]
-SLmelt<-melt(SL)
+sl_plot <- allrasters.df %>%
+  filter(NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) %>%  # get not urban area
+  select(Parks_dist_SL:urbanChg) %>%  # select the last columns
+  melt()  # turn into long format with urbanChg, varable, and value
+
 # plot
-p <- ggplot(SLmelt, aes(x=urbanChg, y=value,fill=variable))+
-    geom_boxplot()+
-    facet_grid(.~variable)+
-    labs(x="X (binned)")+
-    theme(axis.text.x=element_text(angle=-90, vjust=0.4,hjust=1))
-p
+ggplot(sl_plot, aes(x=urbanChg, y=value,fill=variable))+
+  geom_boxplot()+
+  facet_grid(.~variable)+
+  labs(x="X (binned)")+
+  theme(axis.text.x=element_text(angle=-90, vjust=0.4,hjust=1))
 ```
 
 ### General Linear Models
@@ -166,7 +178,7 @@ newUrban <- SL %>%
 nonUrban <- SL %>%
   filter(urbanChg == FALSE)
 
-###Get a random sample of the absence data  
+###Get a random sample of the absence data
 ### that is twice as large as the presence data
 index <- sample(1:nrow(nonUrban), (round(nrow(newUrban)* 2)))
 SLsampleUrban <- nonUrban[index, ]
@@ -180,7 +192,7 @@ index <- sample(1:nrow(SL), (round(nrow(SL)* 0.01)))
 SLsample <- SL[index, ]
 
 ###Consider making a training and testing dataset
-###This can reduce the computational burden 
+###This can reduce the computational burden
 ### It also is a robust goodness of fit method
 #SLsample <- SLsample %>% dplyr::mutate(id = row_number())
 #Create training set

@@ -16,6 +16,7 @@ library(terra)  # for working with raster data
 library(tidyverse)  # for manipulating the data
 library(ape)  # for getting autocorrelation coefficient
 library(reshape2)  # for reshaping data frames
+library(ROCR)  # for getting the ROC curve
 ```
 
 ******************************************************
@@ -65,63 +66,6 @@ allrasters.df <- allrasters %>%
 head(allrasters.df)
 ```
 
-### Sampling
-```{r show how many rows}
-nrow(allrasters.df)  # get the row number of the data frame
-```
-Because of the huge amount of data, a random sample is needed to do the further analysis.
-
-Using the function `spatSample()` in the `terra` package, a random sample can be deployed by setting the `method` parameter to `random`. Here I sample 100 points for the Salt Lake region.
-```{r random sample}
-sampleSLrnd <- allrasters %>%
-  spatSample(size=100, method="random", cells=TRUE, xy=TRUE) %>%  # do random sample
-  filter(NLCD_2001_SL != 128)  # remove no data value
-# plot sample points
-plot(sampleSLrnd$x, sampleSLrnd$y,
-     main='Random Sample points', xlab='X (m)', ylab='Y (m)')
-```
-
-### Accessing the Dataset
-To assess my sampling result, first check the histogram of the original data and the sampled data.
-```{r compare histogram}
-par(mfrow=c(2, 5),  # set 2*5 sub plots
-    mar=c(4, 4, 0.8, 0.65))  # set bottom, left, top, right margin
-
-title=c('LandUse16','Park Dist', 'Road Dense', 'Water Dist', 'DEM')  # set title
-
-for (i in 9:13) {  # plot orignal on the first row
-  hist(allrasters.df[, i], main=title[i-8], xlab=NA, col='plum1', ylab=ifelse(i==9,'Frequency (Original)',NA))
-}
-for (i in 9:13){  # plot sampled on the second row
-  hist(sampleSLrnd[, i+1], main=NA, xlab="Value", col='skyblue', ylab=ifelse(i==9,'Frequency (Sampled)',NA))
-}
-
-par(mfrow=c(1, 1))  # set graphic parameter to normal
-```
-
-Also, I want to check the spatial autocorrelation. To assess spatial dependency. First get distance matrix, then assess the specific spatial autocorrelation using Moran’s I, which is the most widely use.
-```{r assess spatial dependency}
-dist_mat <- as.matrix(dist(cbind(sampleSLrnd$x, sampleSLrnd$y)))  # get distance matrix
-dist_mat.i <- 1/dist_mat  # get reciprocal distance matrix
-diag(dist_mat.i) <- 0  # set diagonal to 0
-
-raster_names <- names(sampleSLrnd)[4:ncol(sampleSLrnd)]
-raster_names <- data.frame(Raster_Name = raster_names)
-Moran_res <- data.frame()
-for(i in 4:ncol(sampleSLrnd)){
-  Moran_res <- rbind(Moran_res, Moran.I(sampleSLrnd[,i], dist_mat.i))
-}
-cbind(raster_names, Moran_res)
-```
-From the result, the expected value is -0.01 while the observed value is 0.19, indicating the moderate positive spatial autocorrelation. Similar values are clustered together in space
-
-A Moran's I value of 0.19 indicates positive spatial autocorrelation, meaning that similar values are clustered together in space. The Moran's I statistic ranges from -1 to 1, where:
-
-If Moran's I is close to 1, it suggests strong positive spatial autocorrelation.
-If Moran's I is close to -1, it suggests strong negative spatial autocorrelation.
-If Moran's I is close to 0, it suggests spatial randomness.
-In your case, with a Moran's I value of 0.19, the positive sign indicates that nearby locations tend to have similar values. The magnitude (0.19) suggests a moderate degree of spatial autocorrelation. Researchers or analysts would typically interpret this value in the context of the specific study and the characteristics of the data. It implies that there is some level of clustering or pattern in the spatial distribution of the variable being analyzed.
-
 ### Statistical Analysis
 identify the pixels that were not urban area in 2001 but have changed to urban area by 2016.
 ```{r}
@@ -150,77 +94,112 @@ compare means and plot the variance between newly developed urban areas and the 
 
 Let’s look at the mean and variance of the variables that might shape where there is new development. We have to reshape the data to achieve this.
 ```{r}
-sl_plot <- allrasters.df %>%
+sl_long <- allrasters.df %>%
   filter(NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) %>%  # get not urban area
   select(Parks_dist_SL:urbanChg) %>%  # select the last columns
   melt()  # turn into long format with urbanChg, varable, and value
 
 # plot
-ggplot(sl_plot, aes(x=urbanChg, y=value,fill=variable))+
+ggplot(sl_long, aes(x=urbanChg, y=value,fill=variable))+
   geom_boxplot()+
   facet_grid(.~variable)+
   labs(x="X (binned)")+
   theme(axis.text.x=element_text(angle=-90, vjust=0.4,hjust=1))
 ```
 
-### General Linear Models
-The generalized linear model (GLM) is a flexible generalization of ordinary linear regression that allows for response variables that have error non-normal distributions. The GLM generalizes linear regression by allowing the linear model to be related to the response variable via a link function and by allowing the magnitude of the variance of each measurement to be a function of its predicted value.
-
-Ordinary linear regression predicts the expected value of a given unknown quantity (the response variable, a random variable) as a linear combination of a set of observed values (predictors). This implies that a constant change in a predictor leads to a constant change in the response variable (i.e. a linear-response model). This is appropriate when the response variable has a normal distribution (intuitively, when a response variable can vary essentially indefinitely in either direction with no fixed “zero value”, or more generally for any quantity that only varies by a relatively small amount, e.g. human heights).
-
-Use The sample() function draw a random number indexes representing the rows of a dataframe. In cases where we have many absence data (area that were not develop) and few presence (developed), a common procedure is to retain all presence data and taking a smaller randomly sample of the absence. A ratio of 1:2 is common, but this is not a rule, and other ratios can be used and are often tested.
-```{r}
-###Grab all the developed cells (presence)
-newUrban <- SL %>%
-  filter(urbanChg == TRUE)
-
-###Grab all the nondeveloped and not previously urban cells (absence)
-nonUrban <- SL %>%
-  filter(urbanChg == FALSE)
-
-###Get a random sample of the absence data
-### that is twice as large as the presence data
-index <- sample(1:nrow(nonUrban), (round(nrow(newUrban)* 2)))
-SLsampleUrban <- nonUrban[index, ]
-
-### combine the orginal presence and absence data
-SLsample2 <- cbind(SLsampleUrban, newUrban)
-SLsample <- rbind(SLsampleUrban, newUrban)
-
-###Consider a train and testing sample by futher subsampling the data
-index <- sample(1:nrow(SL), (round(nrow(SL)* 0.01)))
-SLsample <- SL[index, ]
-
-###Consider making a training and testing dataset
-###This can reduce the computational burden
-### It also is a robust goodness of fit method
-#SLsample <- SLsample %>% dplyr::mutate(id = row_number())
-#Create training set
-#train <- SLsample %>% sample_frac(.70)
-#Create test set
-#test  <- anti_join(SLsample, train, by = 'id')
+### Generalized Linear Models
+#### get sample
+```{r show how many rows}
+nrow(allrasters.df)  # get the row number of the data frame
 ```
+Because of the huge amount of data, a random sample is needed to do the further analysis.
+
+take a random sample of our the entire data set. The sample() function draw a random number indexes representing the rows of a dataframe. From this random sample, we can grab the actual data using the row and column conventions in r . In cases were we have many absence data (area that were not develop) and few presence (developed), a common procedure is to retain all presence data and taking a smaller randomly sample of the absence. A ratio of 1:2 is common, but this is not a rule, and other ratios can be used and are often tested.
+```{r set random seed, echo=F}
+set.seed(77)
+# set.seed(NULL)
+```
+
+```{r get random sample of the whole data set}
+## --- sample all of the area changed to urban and some of the not changed, make them 1:2
+# get all of the area that are not urban in 2001
+sl_urban <- filter(allrasters.df,
+                   NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24)
+# separately get the area changed and not changed to urban
+sl_chg <- filter(sl_urban, urbanChg == T)
+sl_nchg <- filter(sl_urban, urbanChg == F)
+# sample
+sample_index_nchg <- sample(1:nrow(sl_nchg), nrow(sl_chg)* 2)
+sl_sample <- rbind(sl_chg, sl_nchg[sample_index_nchg,])
+```
+#### Assess sample
+To assess my sampling result, first check the histogram of the original data and the sampled data.
+```{r compare histogram}
+par(mfrow=c(2, 5),  # set 2*5 sub plots
+    mar=c(4, 4, 0.8, 0.65))  # set bottom, left, top, right margin
+
+title=c('LandUse16','Park Dist', 'Road Dense', 'Water Dist', 'DEM')  # set title
+
+for (i in 9:13) {  # plot orignal on the first row
+  hist(allrasters.df[, i], main=title[i-8], xlab=NA, col='plum1', ylab=ifelse(i==9,'Frequency (Original)',NA))
+}
+for (i in 9:13){  # plot sampled on the second row
+  hist(sl_sample[, i], main=NA, xlab="Value", col='skyblue', ylab=ifelse(i==9,'Frequency (Sampled)',NA))
+}
+
+par(mfrow=c(1, 1))  # set graphic parameter to normal
+```
+
+Also, I want to check the spatial autocorrelation. To assess spatial dependency. First get distance matrix, then assess the specific spatial autocorrelation using Moran’s I, which is the most widely use.
+```{r assess spatial dependency}
+sd_sample <- sl_sample[sample(1:nrow(sl_sample), 100),]
+dist_mat <- as.matrix(dist(cbind(sd_sample$x, sd_sample$y)))  # get distance matrix
+dist_mat.i <- 1/dist_mat  # get reciprocal distance matrix
+diag(dist_mat.i) <- 0  # set diagonal to 0
+
+raster_names <- names(sd_sample)[3:ncol(sd_sample)]
+raster_names <- data.frame(Raster_Name = raster_names)
+Moran_res <- data.frame()
+for(i in 3:ncol(sd_sample)){
+  Moran_res <- rbind(Moran_res, Moran.I(sd_sample[,i], dist_mat.i))
+}
+cbind(raster_names, Moran_res)
+```
+From the result, the expected value is -0.01 while the observed value is 0.19, indicating the moderate positive spatial autocorrelation. Similar values are clustered together in space
+
+A Moran's I value of 0.19 indicates positive spatial autocorrelation, meaning that similar values are clustered together in space. The Moran's I statistic ranges from -1 to 1, where:
+
+If Moran's I is close to 1, it suggests strong positive spatial autocorrelation.
+If Moran's I is close to -1, it suggests strong negative spatial autocorrelation.
+If Moran's I is close to 0, it suggests spatial randomness.
+In your case, with a Moran's I value of 0.19, the positive sign indicates that nearby locations tend to have similar values. The magnitude (0.19) suggests a moderate degree of spatial autocorrelation. Researchers or analysts would typically interpret this value in the context of the specific study and the characteristics of the data. It implies that there is some level of clustering or pattern in the spatial distribution of the variable being analyzed.
+
+#### train and assess model
 Now that we have a sample, we can fit a model. Fitting a model in always uses the same format. You specify the type of model (e.g. lm, glm), then in brackets define the dependent variable followed by the ~ (tilde). After the tilde you name each of the independent variables with + between them. When these are defined, you use a comma and indicate the data and other specification like the model family you want to use (e.g. binomial, poisson, negative binomial)
+
+specifies family=binomial() to indicate that it's fitting a logistic regression model.
+logistic Regression:
+Use Case: Logistic regression is used when the dependent variable is binary (two categories: 0 or 1).
+
 ```{r}
-fit <- glm(urbanChg ~ Parks_dist_SL + Rd_dns1km_SL + WaterDist_SL + DEM_SL,data=SLsample,family=binomial())
+# get train (70%) and test (30%) set
+sl_sample <- sl_sample %>% mutate(id = row_number())  # add row number
+sl_train <- sl_sample %>% sample_frac(.7)  # get train set
+sl_test <- anti_join(sl_sample, sl_train, by='id')  # get test set
+
+fit <- glm(urbanChg ~ Parks_dist_SL + Rd_dns1km_SL + WaterDist_SL + DEM_SL, data=sl_train, family=binomial())
 summary(fit)
 ```
-
-#### Interpreting the Model
-
 
 #### Goodness of Fit
 Check the fit of the model by calculating the Area under the curve and the ROC.
 ```{r}
-## Loading required package: gplots
-library(ROCR)
-# plot a ROC curve for a single prediction run
 # and color the curve according to cutoff.
-pred <- prediction(predict(fit), SLsample$urbanChg)
+pred <- prediction(predict(fit, newdata=sl_test), sl_test$urbanChg)
 perf <- performance(pred,"tpr","fpr")
-plot(perf,colorize=TRUE)
+plot(perf,colorize=TRUE, main = "ROC Curve", sub = "Receiver Operating Characteristic")
 ```
-```{r}
+```{r get AUC}
 ## A simpler way to understand these result is to calculate the
 ## area under the curve(AUC). The closer this number is to 1, the
 ## better your model fit
@@ -231,7 +210,16 @@ auc_ROCR
 
 #### Using the Model to Predict Likely Locations of Development
 Use the predictors to estimate for each pixel the probability of development given our model
-```{r}
+```{r predict}
+fit <- glm(urbanChg ~ Parks_dist_SL + Rd_dns1km_SL + WaterDist_SL + DEM_SL, data=sl_sample, family=binomial())
 predicted <- predict(allrasters, fit)
-plot(predicted)
+
+test <- predicted %>%
+  as.data.frame(xy=T)  # transform to a data frame
+  
+test$lyr1 <- plogis(test$lyr1)
+
+ggplot(test, aes(y=y, x=x, color=lyr1)) +
+   geom_point(size=2, shape=15) +
+   theme()
 ```

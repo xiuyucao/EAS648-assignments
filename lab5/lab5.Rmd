@@ -1,7 +1,7 @@
 ---
 title: "Applied Spatial Analysis"
 author: "[Xiuyu Cao](https://github.com/xiuyucao)"
-date: "Nov 18, 2023"
+date: "Nov 22, 2023"
 output:
   html_document:
     toc: true
@@ -35,31 +35,26 @@ library(ROCR)  # for getting the ROC curve
 In recent decades, Salt Lake City, Utah, has undergone considerable urban development characterized by substantial population growth, immigration, and heightened housing demand. This expansion has resulted in a noteworthy 17.6 percent rise in impervious urban development from 2002 to 2010.
 
 ### Read Data
-First read in the data I will be using to analyze the Salt Lake City. They are raster data of the same resolution and extent. Based on that, they can be combined into a list using the function `terra::c()`, and further turned into a data frame.
+First read in the data I will be using to analyze Salt Lake City. They are raster data of the same resolution and extent. Based on that, they can be combined into a list using the function `terra::c()`, and further turned into a data frame.
 ```{r read data}
-# land use data
-NLCD_2001 <- rast("../data/lab5/NLCD_2001_SL.tif")
-NLCD_2004 <- rast("../data/lab5/NLCD_2004_SL.tif")
-NLCD_2006 <- rast("../data/lab5/NLCD_2006_SL.tif")
-NLCD_2008 <- rast("../data/lab5/NLCD_2008_SL.tif")
-NLCD_2011 <- rast("../data/lab5/NLCD_2011_SL.tif")
-NLCD_2013 <- rast("../data/lab5/NLCD_2013_SL.tif")
-NLCD_2016 <- rast("../data/lab5/NLCD_2016_SL.tif")
-# distance to parks and protected areas (km)
-Park_dist <- rast("../data/lab5/Parks_dist_SL.tif")
-# road density for a 1 km neighborhood
-Rd_dns1km <- rast("../data/lab5/Rd_dns1km_SL.tif")
-# distance to water bodies in km (Euclidean)
-WaterDist <- rast("../data/lab5/WaterDist_SL.tif")
-# elevation
-DEM <- rast("../data/lab5/DEM_SL.tif")
-# combine the raster layers
-allrasters <- c(NLCD_2001, NLCD_2004, NLCD_2006, NLCD_2008, NLCD_2011, NLCD_2013, NLCD_2016, Park_dist, Rd_dns1km, WaterDist, DEM)
+# read data
+NLCD_2001 <- rast("../data/lab5/NLCD_2001_SL.tif")  # land use data 2001
+NLCD_2004 <- rast("../data/lab5/NLCD_2004_SL.tif")  # land use data 2004
+NLCD_2006 <- rast("../data/lab5/NLCD_2006_SL.tif")  # land use data 2006
+NLCD_2008 <- rast("../data/lab5/NLCD_2008_SL.tif")  # land use data 2008
+NLCD_2011 <- rast("../data/lab5/NLCD_2011_SL.tif")  # land use data 2011
+NLCD_2013 <- rast("../data/lab5/NLCD_2013_SL.tif")  # land use data 2013
+NLCD_2016 <- rast("../data/lab5/NLCD_2016_SL.tif")  # land use data 2016
+Park_dist <- rast("../data/lab5/Parks_dist_SL.tif")  # distance (km) to parks and protected areas
+Rd_dns1km <- rast("../data/lab5/Rd_dns1km_SL.tif")  # road density for a 1 km neighborhood
+WaterDist <- rast("../data/lab5/WaterDist_SL.tif")  # distance (km) to water bodies
+DEM <- rast("../data/lab5/DEM_SL.tif")  # elevation
 
+# stack the raster layers
+allrasters <- c(NLCD_2001, NLCD_2004, NLCD_2006, NLCD_2008, NLCD_2011, NLCD_2013, NLCD_2016, Park_dist, Rd_dns1km, WaterDist, DEM)
 allrasters[[1]]  # check the data
 plot(allrasters[[1]])  # check the data
-
-# turn it into a data frame
+# turn raster layers into a data frame
 allrasters.df <- allrasters %>%
   as.data.frame(xy=T) %>%  # transform to a data frame
   filter(NLCD_2001_SL != 128)  # remove no data value (stored as 128)
@@ -67,81 +62,94 @@ head(allrasters.df)
 ```
 
 ### Statistical Analysis
-identify the pixels that were not urban area in 2001 but have changed to urban area by 2016.
-```{r}
-allrasters.df <- allrasters.df %>%  # get urbanChg: whether changed to urban area from 2001 to 2016
-  mutate(urbanChg = (NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) & (NLCD_2016_SL == 21 | NLCD_2016_SL == 22  | NLCD_2016_SL == 23 | NLCD_2016_SL == 24))
+From 2001 to 2016, many areas in Salt Lake City have changed to urban areas.
+```{r get is_changed and plot areas changed to urban}
+allrasters.df <- allrasters.df %>%  # get is_changed: whether changed to urban area from 2001 to 2016
+  mutate(is_changed = (NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) & (NLCD_2016_SL == 21 | NLCD_2016_SL == 22  | NLCD_2016_SL == 23 | NLCD_2016_SL == 24))
 # plot
-ggplot(allrasters.df, aes(y=y, x=x, color=urbanChg)) +
-   geom_point(size=2, shape=15) +
-   theme()
+ggplot(allrasters.df, aes(y=y, x=x, color=is_changed)) +
+  geom_point(size=2, shape=15) +
+  scale_color_manual(values = c("FALSE" = "snow3", "TRUE" = "yellow")) +
+  labs(title='Areas Changed to Urban in Salt Lake City, 2001-2016',
+       x='X (m)',y='Y (m)', color='Whether Changed')
 ```
 
-**********************************************************************
-How much change did Salt Lake experience from 2001 to 2016:
+From the graph we can see the significant changes in Salt Lake City from 2001 to 2016. Let's analyze this quantitatively.
+
 `as.numeric()` converts the logical vector obtained in the previous step to a numeric vector, where TRUE is converted to 1 and FALSE is converted to 0.
 `sum()` calculates the sum of the numeric vector obtained in the previous step
-```{r}
-## calculate total new urban impervious for 2016
-newUrban <- with(allrasters.df,(sum(as.numeric(NLCD_2016_SL == 21 | NLCD_2016_SL == 22 | NLCD_2016_SL == 23 | NLCD_2016_SL == 24))) - (sum(as.numeric(NLCD_2001_SL == 21| NLCD_2001_SL == 22| NLCD_2001_SL == 23| NLCD_2001_SL == 24))))
-## calculate total urban impervious for 2001
-urban2001 <- with(allrasters.df,(sum(as.numeric(NLCD_2001_SL == 21| NLCD_2001_SL == 22| NLCD_2001_SL == 23| NLCD_2001_SL == 24))))
-## percentage increase in urban impervious
-newUrban/urban2001* 100
+```{r quantitatively analyze urban change}
+# get the new urban areas after 2001
+urban_new <- with(allrasters.df, (sum(as.numeric(NLCD_2016_SL == 21 | NLCD_2016_SL == 22 | NLCD_2016_SL == 23 | NLCD_2016_SL == 24))) - (sum(as.numeric(NLCD_2001_SL == 21| NLCD_2001_SL == 22| NLCD_2001_SL == 23| NLCD_2001_SL == 24))))
+# get original urban areas in 2001
+urban_ori <- with(allrasters.df,(sum(as.numeric(NLCD_2001_SL == 21| NLCD_2001_SL == 22| NLCD_2001_SL == 23| NLCD_2001_SL == 24))))
+# get percentage change
+urban_new/urban_ori* 100
 ```
 
-compare means and plot the variance between newly developed urban areas and the different variables. Let’s look at the influence of the distance to protected areas.
+Urban areas increased by About `r round(urban_new/urban_ori* 100,2)`% in Salt Lake City from 2001 to 2016, this is huge!
 
-Let’s look at the mean and variance of the variables that might shape where there is new development. We have to reshape the data to achieve this.
-```{r}
-sl_long <- allrasters.df %>%
-  filter(NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) %>%  # get not urban area
-  select(Parks_dist_SL:urbanChg) %>%  # select the last columns
-  melt()  # turn into long format with urbanChg, varable, and value
+Urbanization is necessary for more economic opportunities and development of infrastructure for the well being of citizens, while it can cause various consequences including the habitat loss of many species and Urban Heat Island. Therefore, it is an important land management problem to decided where to develop new urban area and predict the urban area development to plan future land management and conservation. Let's quantitatively analyze where these changes took place during 2001-2016.
+```{r calculate distances changed}
+# get distance to different areas
+data2plot <- allrasters.df %>%
+  filter(NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24) %>%  # get potential areas to develop in 2001
+  select(Parks_dist_SL:is_changed) %>%  # select the last columns
+  melt()  # turn into long format for plot
 
+# set plot legend labels
+legend_labels <- c('Distance to Green Areas (km)', 
+                   'Road Density (1km Neighborhood)',
+                   'Distance to Water Bodies (km)', 
+                   'Elevation (m)')
 # plot
-ggplot(sl_long, aes(x=urbanChg, y=value,fill=variable))+
-  geom_boxplot()+
-  facet_grid(.~variable)+
-  labs(x="X (binned)")+
-  theme(axis.text.x=element_text(angle=-90, vjust=0.4,hjust=1))
+ggplot(data2plot, aes(x=is_changed, y=value,fill=variable)) +  # set plot
+  scale_fill_manual(values = c('green3','gray','steelblue1','yellow'),  # set fill color
+                    labels=legend_labels) +  # set legend names
+  geom_boxplot() +  # set box plot
+  facet_wrap(~variable, scales='free_y') +  # different plots
+  labs(x="Whether Changed to Urban Area", y='Value') +  # set x y labels
+  guides(fill = guide_legend(title = NULL)) +  # remove legend title
+  theme(strip.text = element_blank()) +  # remove subplot titles
+  ggtitle('Where Urbanization Took Place in Salt Lake City, 2001-2016')
 ```
 
-### Generalized Linear Models
-#### get sample
-```{r show how many rows}
-nrow(allrasters.df)  # get the row number of the data frame
-```
-Because of the huge amount of data, a random sample is needed to do the further analysis.
+As shown in the plot, in Salt Lake City during 2001-2016, Urban Development followed these patterns:
 
-take a random sample of our the entire data set. The sample() function draw a random number indexes representing the rows of a dataframe. From this random sample, we can grab the actual data using the row and column conventions in r . In cases were we have many absence data (area that were not develop) and few presence (developed), a common procedure is to retain all presence data and taking a smaller randomly sample of the absence. A ratio of 1:2 is common, but this is not a rule, and other ratios can be used and are often tested.
-```{r set random seed, echo=F}
-set.seed(77)
-# set.seed(NULL)
-```
+* farther from the green area (parks and protected areas)
+* more prevalent in areas with higher road density
+* more prevalent in areas with lower elevation and lower variation in elevation
 
+These patterns make sense. For future land management and conservation, a prediction of probable developing area is needed.
+
+### Urban Development Model
+To forecast future urban development in Salt Lake City, I will develop a predictive model using the areas that were not urban in 2001 and to see what contributed to the urban change during 2001-2016.
+
+#### Sampling
+Due to the huge amount of the data, a random sample is needed to do the further analysis. Here my random seed is set to 77. Since there are many non-urban areas and few urban areas. I will sample all of the area changed to urban and some of the areas not changed during 2001 to 2016, making them 1:2
 ```{r get random sample of the whole data set}
-## --- sample all of the area changed to urban and some of the not changed, make them 1:2
+set.seed(77)  # set a random seed
+# set.seed(NULL)
+
 # get all of the area that are not urban in 2001
-sl_urban <- filter(allrasters.df,
+non_urban01 <- filter(allrasters.df,
                    NLCD_2001_SL != 21 & NLCD_2001_SL != 22 & NLCD_2001_SL != 23 & NLCD_2001_SL != 24)
 # separately get the area changed and not changed to urban
-sl_chg <- filter(sl_urban, urbanChg == T)
-sl_nchg <- filter(sl_urban, urbanChg == F)
-# sample
-sample_index_nchg <- sample(1:nrow(sl_nchg), nrow(sl_chg)* 2)
-sl_sample <- rbind(sl_chg, sl_nchg[sample_index_nchg,])
+sl_chg <- filter(non_urban01, is_changed == T)
+sl_nchg <- filter(non_urban01, is_changed == F)
+# get sample
+sample_index <- sample(1:nrow(sl_nchg), nrow(sl_chg)* 2)
+sl_sample <- rbind(sl_chg, sl_nchg[sample_index,])
 ```
-#### Assess sample
+
 To assess my sampling result, first check the histogram of the original data and the sampled data.
 ```{r compare histogram}
 par(mfrow=c(2, 5),  # set 2*5 sub plots
     mar=c(4, 4, 0.8, 0.65))  # set bottom, left, top, right margin
 
 title=c('LandUse16','Park Dist', 'Road Dense', 'Water Dist', 'DEM')  # set title
-
-for (i in 9:13) {  # plot orignal on the first row
-  hist(allrasters.df[, i], main=title[i-8], xlab=NA, col='plum1', ylab=ifelse(i==9,'Frequency (Original)',NA))
+for (i in 9:13) {  # plot original on the first row
+  hist(non_urban01[, i], main=title[i-8], xlab=NA, col='plum1', ylab=ifelse(i==9,'Frequency (Original)',NA))
 }
 for (i in 9:13){  # plot sampled on the second row
   hist(sl_sample[, i], main=NA, xlab="Value", col='skyblue', ylab=ifelse(i==9,'Frequency (Sampled)',NA))
@@ -149,10 +157,11 @@ for (i in 9:13){  # plot sampled on the second row
 
 par(mfrow=c(1, 1))  # set graphic parameter to normal
 ```
+As shown in the graph, the distribution of the original data closely mirrors that of the sampled data, indicating an unbiased sample.
 
-Also, I want to check the spatial autocorrelation. To assess spatial dependency. First get distance matrix, then assess the specific spatial autocorrelation using Moran’s I, which is the most widely use.
+Also, it is important to check the spatial dependency.
 ```{r assess spatial dependency}
-sd_sample <- sl_sample[sample(1:nrow(sl_sample), 100),]
+sd_sample <- sl_sample[sample(1:nrow(sl_sample), 100),]  # randomly get 100 records for checking the spatial dependency
 dist_mat <- as.matrix(dist(cbind(sd_sample$x, sd_sample$y)))  # get distance matrix
 dist_mat.i <- 1/dist_mat  # get reciprocal distance matrix
 diag(dist_mat.i) <- 0  # set diagonal to 0
@@ -165,37 +174,31 @@ for(i in 3:ncol(sd_sample)){
 }
 cbind(raster_names, Moran_res)
 ```
-From the result, the expected value is -0.01 while the observed value is 0.19, indicating the moderate positive spatial autocorrelation. Similar values are clustered together in space
+From the result, the expected value is -0.01. The observed values of each raster layer vary. 
 
-A Moran's I value of 0.19 indicates positive spatial autocorrelation, meaning that similar values are clustered together in space. The Moran's I statistic ranges from -1 to 1, where:
+* The sd and p values are all small, showing a good precision and significance in the result.
+* For the land use type, most of their Moran's Indexes are about or below 0.1 and above 0, indicating very weak positive spatial autocorrelation.
+* For the distance to park, road density, distance to water bodies, and elevation their Moran's I range from 0.2 to 0.4, indicating a moderate to strong positive spatial autocorrelation, meaning that there is some level of clustering or pattern in these spatial data.
 
-If Moran's I is close to 1, it suggests strong positive spatial autocorrelation.
-If Moran's I is close to -1, it suggests strong negative spatial autocorrelation.
-If Moran's I is close to 0, it suggests spatial randomness.
-In your case, with a Moran's I value of 0.19, the positive sign indicates that nearby locations tend to have similar values. The magnitude (0.19) suggests a moderate degree of spatial autocorrelation. Researchers or analysts would typically interpret this value in the context of the specific study and the characteristics of the data. It implies that there is some level of clustering or pattern in the spatial distribution of the variable being analyzed.
-
-#### train and assess model
-Now that we have a sample, we can fit a model. Fitting a model in always uses the same format. You specify the type of model (e.g. lm, glm), then in brackets define the dependent variable followed by the ~ (tilde). After the tilde you name each of the independent variables with + between them. When these are defined, you use a comma and indicate the data and other specification like the model family you want to use (e.g. binomial, poisson, negative binomial)
-
-specifies family=binomial() to indicate that it's fitting a logistic regression model.
-logistic Regression:
-Use Case: Logistic regression is used when the dependent variable is binary (two categories: 0 or 1).
-
-```{r}
+#### Model Development
+The Generalized Linear Model (GLM) is a flexible generalization of ordinary linear regression that allows for response variables that have error non-normal distributions. The GLM generalizes linear regression by allowing the linear model to be related to the response variable via a link function and by allowing the magnitude of the variance of each measurement to be a function of its predicted value. Here I use the `glm` function to call the GLM, and set `family=binomial`, meaning that it is fitting a logistic regression model since our `is_changed` attribute is binary with only `True` or `False`.
+```{r get train and test set and train the model}
 # get train (70%) and test (30%) set
 sl_sample <- sl_sample %>% mutate(id = row_number())  # add row number
 sl_train <- sl_sample %>% sample_frac(.7)  # get train set
 sl_test <- anti_join(sl_sample, sl_train, by='id')  # get test set
-
-fit <- glm(urbanChg ~ Parks_dist_SL + Rd_dns1km_SL + WaterDist_SL + DEM_SL, data=sl_train, family=binomial())
+# get model
+fit <- glm(is_changed ~ Parks_dist_SL + Rd_dns1km_SL + WaterDist_SL + DEM_SL, data=sl_train, family=binomial())
 summary(fit)
 ```
+As shown in the result, the `Estimate` shows the weight of influence on the independent variable. From the values, we can conclude that the distance to the parks, road density, and distance to the water bodies all have a positive relationship with urban development, while the elevation has a negative one. The `Std. Error` are all small, indicating the small uncertainty of the estimate. The `z value` are all greater than 2 when positive or smaller than -2 when negative, showing that the observed result is unlikely to have occurred by chance alone. The `Pr(>|z|)` all being very small also indicates the significance in the model.
 
-#### Goodness of Fit
-Check the fit of the model by calculating the Area under the curve and the ROC.
-```{r}
+[The null deviance shows how well the response variable is predicted by a model that includes only the intercept (grand mean). The residual deviance shows how well the response is predicted by the model when the predictors are included. It can be seen that the deviance goes down by 29435.1 - 9035.4 = 20399.7 when 4 predictor variables are added (note: degrees of freedom = no. of observations – no. of predictors) . This decrease in deviance is evidence of a significant increase in fit. The Akaike information criterion (AIC) is an information-theoretic measure that describes the quality of a model. It is best use to compare between models fitting the same dependent variable and sample.]{style="color: red"}
+
+Check the fit of the model by calculating the Area under the curve and the ROC curve calculated by the test set.
+```{r get ROC}
 # and color the curve according to cutoff.
-pred <- prediction(predict(fit, newdata=sl_test), sl_test$urbanChg)
+pred <- prediction(predict(fit, newdata=sl_test), sl_test$is_changed)
 perf <- performance(pred,"tpr","fpr")
 plot(perf,colorize=TRUE, main = "ROC Curve", sub = "Receiver Operating Characteristic")
 ```
@@ -207,19 +210,33 @@ auc_ROCR <- performance(pred, measure = "auc")
 auc_ROCR <- auc_ROCR@y.values[[1]]
 auc_ROCR
 ```
+* High Discriminative Power: An AUC of 0.96 suggests that the model has a high ability to distinguish between the two classes.
+Excellent Model Performance: A model with an AUC of 0.96 is performing exceptionally well in terms of separating true positives from false positives and true negatives from false negatives.
+* Strong Predictive Ability: The model is likely to make accurate predictions, and its output can be trusted for decision-making.
+Robustness: A high AUC indicates that the model's performance is consistent across different thresholds, making it robust in various scenarios.
+* the model performs well on the test set, indicating its good generalization ability. 
 
-#### Using the Model to Predict Likely Locations of Development
+#### Prediction
 Use the predictors to estimate for each pixel the probability of development given our model
-```{r predict}
-fit <- glm(urbanChg ~ Parks_dist_SL + Rd_dns1km_SL + WaterDist_SL + DEM_SL, data=sl_sample, family=binomial())
+```{r predict development}
+fit <- glm(is_changed ~ Parks_dist_SL + Rd_dns1km_SL + WaterDist_SL + DEM_SL, data=sl_sample, family=binomial())
 predicted <- predict(allrasters, fit)
 
 test <- predicted %>%
   as.data.frame(xy=T)  # transform to a data frame
-  
+
 test$lyr1 <- plogis(test$lyr1)
 
 ggplot(test, aes(y=y, x=x, color=lyr1)) +
    geom_point(size=2, shape=15) +
    theme()
 ```
+The areas closer to 1 are more likely to have urban development in the future.
+
+### Conclusion
+Salt Lake City has undergone huge urban development. From the results of the statistical analysis and the GLM, we can see the distance to the parks, road density, and distance to the water bodies all have a positive relationship with urban development, while the elevation has a negative one. And the road density contribute the most to the urban development. In order to better explain urban development, besides the land-use type, I can add other layers like 
+* pulation Density: High population density can be associated with increased urbanization. It reflects the concentration of people in a given area.
+* Economic Indicators: Variables related to economic activities, such as employment rates, income levels, and economic growth, can help explain the dynamics of urban development.
+* Education Levels: Higher education levels in an area might be associated with certain types of urban development, such as the presence of educational institutions and knowledge-based industries.
+* Environmental Factors: Consideration of environmental variables, such as proximity to green spaces, air quality, and climate, can provide a holistic view of urban development and sustainability.
+* Nighttime Light Remote Sensing Imagery

@@ -173,6 +173,7 @@ monthly_creator  %>%
   scale_color_discrete() + 
   labs(title = "Monthly Trend Every Year in Creators on Flickr in Michigan",
        x = "Month", y = "Number of Creators") +
+  scale_color_discrete(name = "Year") +  # set legend title
   theme_classic()
 ```
 

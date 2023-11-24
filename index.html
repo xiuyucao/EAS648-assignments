@@ -1,16 +1,96 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GFG</title>
+    <title>EAS648 Assignments</title>
+    <style>
+        body {
+            font-family: 'Helvetica', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0px;
+            text-align: center;
+        }
+
+        header {
+            background-color: #333;
+            padding: 10px;
+            color: #fff;
+            font-size: 48px;
+            font-weight: bold;
+        }
+
+        a {
+            display: inline-block;
+            width: 45%;
+            margin: 10px;
+            text-decoration: none;
+            color: #007BFF;
+            font-weight: bold;
+            vertical-align: top;
+        }
+
+        img {
+            height: 400px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        a {
+            position: relative;
+        }
+
+        p {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 16px;
+            color: #f0f0f0;
+            opacity: 0;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 10px;
+            border-radius: 8px;
+            transition: opacity 0.3s ease;
+        }
+
+        a:hover p {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            a {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
+
 <body>
-    <h1>Hello this is my EAS648 assignment page.</h1>
-    <a href='lab1/lab1.html'>How Do Wildfires Affect Public Health?</a><br>
-    <a href='lab2/lab2.html'>LiDAR and Trees</a><br>
-    <a href='lab3/lab3.html'>Social Media Data Analysis</a><br>
-    <a href='lab4/lab4.html'>Sentiment Analysis</a>
+    <header>EAS 648</header>
+
+    <a href='lab1/lab1.html'>
+        <img src='webpage_image/1.png' alt='Lab 1'>
+        <p>How Do Wildfires Affect Public Health?</p>
+    </a>
+
+    <a href='lab2/lab2.html'>
+        <img src='webpage_image/2.png' alt='Lab 2'>
+        <p>LiDAR and Trees</p>
+    </a>
+
+    <a href='lab3/lab3.html'>
+        <img src='webpage_image/3.png' alt='Lab 3'>
+        <p>Social Media Data Analysis</p>
+    </a>
+
+    <a href='lab4/lab4.html'>
+        <img src='webpage_image/4.png' alt='Lab 4'>
+        <p>Sentiment Analysis</p>
+    </a>
 </body>
+
 </html>

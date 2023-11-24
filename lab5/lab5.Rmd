@@ -17,6 +17,7 @@ library(tidyverse)  # for manipulating the data
 library(ape)  # for getting autocorrelation coefficient
 library(reshape2)  # for reshaping data frames
 library(ROCR)  # for getting the ROC curve
+library(sf)  # for working with simple feature data
 ```
 
 ******************************************************
@@ -236,18 +237,12 @@ Salt Lake City has undergone huge urban development. From the results of the sta
 
 ******************************************************
 ## Cluster Analysis
-
-```{r}
-library(fastcluster)
-library(graphics)
-library(ggdendro)
-```
+Cluster analysis is the task of grouping a set of objects in such a way that objects in the same cluster are more simmilar to each other than to those in other clusters. Here I want to futher analyze what variables contribute to the urban development in the United State's scale.
 
 ### Data Read-in
+The data set includes different amenity characteristic for the entire US of 10*10km grid. It is developed by [Derek Van Berkel](https://seas.umich.edu/research/faculty/derek-van-berkel), from different sources of data (e.g. [NLCD], [SEDAC], social media, [culture monuments]). First read the data. An overview of the data can be found [here]()
 ```{r read amenity data}
-library(sf)  # for working with simple feature data
 amenData<- st_read("../data/lab5/AmenDataAll.shp")
-head(amenData)
 names(amenData)
 ```
 
@@ -256,53 +251,69 @@ geomData <- st_sfc(amenData$geometry)
 ```
 
 ### Choose Data
-```{r transforming the data}
-amenData$ZooEmpDist_log <- log(amenData$ZooDistEmp + 0.00000001)
-amenData$HotelEmpDist_log <- log(amenData$HotelDistE + 0.00000001)
-amenData$HistMonDist_log <- log(amenData$HistMon_Di + 0.00000001)
-amenData$HighEdEmpDist_log <- log(amenData$HigherEdDi + 0.00000001)
-amenData$GolfEmpDist_log <- log(amenData$GolfDistEm + 0.00000001)
+From the case of Salt Lake City, we learnt that distance to the green, road density, distance to the water, and elevation all contribute to the urban development. I want to further analyze whether there is a similar pattern across the country. According to the available data for cluster analysis, I will use the following data to do the cluster analysis:
 
-amenData$SocialNorm <- amenData$Nat_Flickr/(amenData$serPop10 + 1)
-amenData$HousingChg <- amenData$Urb2011 - amenData$Urb2001
+* Forest percentage in 2001: `Frst2001`
+* Urban percentage in 2001: `Urb2001`
+* Population in 2000: `serPop00`
+* Population change from 2000 to 2010 `PopChg`: derived from `serPop00` and `serPop10`
+* Elevation data: including `DEM_min`, `DEM_max`, `DEM_mean`, and `DEM_Variet`
+* Distance to historical places data `HistMonDist_log`: derived from `HistMon_Di`
+
+First do the data pre-processing. Since there is not a spatial linear relationship with a location attribute, a log transform is deployed to the distance to historical places data. Also, the population change is calculated.
+```{r transforming the data}
+# log transform the distance data
+amenData$HistMonDist_log <- log(amenData$HistMon_Di + 0.00000001)  # log transform the distance data
+amenData$PopChg <- amenData$serPop10 - amenData$serPop00  # get the population change data
 ```
-choose variables based on a thematic inquiry of my choice
-```{r choose the data}
-amenDataDF<-amenData[,c("SocialNorm", "HousingChg", "Frst2011", "WaterPct", "distcoast", "DEM_max","DEM_range", "HikeLength","ZooEmpDist_log", "HotelEmpDist_log","HistMonDist_log", "HighEdEmpDist_log", "GolfEmpDist_log")]
-## make sure there are no missing data
-amenDataDF <- na.omit(amenDataDF)
-## we need to make it into a normal dataframe to 
-## do the analysis
-amenDataDF <- as.data.frame(amenDataDF)[1:12]
-## calculate z-scores for the dataset
-db_scaled <- scale(amenDataDF)
+Then get the selected data for cluster analysis
+```{r select and standardize data}
+amenDataDF<-amenData[,c('Frst2001','Urb2001','serPop00','PopChg','DEM_min','DEM_max','DEM_mean','DEM_Variet','HistMonDist_log')] # select columns
+amenDataDF <- na.omit(amenDataDF)  # omit NA data
+amenDataDF <- as.data.frame(amenDataDF)[1:9]  # get rid of the geometry data for cluster analysis
+db_scaled <- scale(amenDataDF)  # z-score standardization: mean of 0 and std of 1
 ```
 
 ### Cluster
 visualize and provide qualitative descriptions of the groups derived from the clustering techniques
 provide evidence of my characterization
 give an explanation of the spatial distribution of these groups
-```{r}
+```{r determine number of clusters}
 # Determine number of clusters
-wss <- (nrow(db_scaled)-1)*sum(apply(db_scaled,2,var))
-for (i in 2:15) wss[i] <- sum(kmeans(db_scaled,
-   centers=i)$withinss)
-plot(1:15, wss, type="b", xlab="Number of Clusters",
-  ylab="Within groups sum of squares")
+wss <- (nrow(db_scaled)-1)*sum(apply(db_scaled,2,var))  # total within-group sum of squares for one cluster.
+for (i in 2:15) wss[i] <- sum(kmeans(db_scaled, centers=i)$withinss)  # try different cluster numbers
+plot(1:15, wss, type="b",    # plot and compare
+     xlab="Number of Clusters", ylab="Within groups sum of squares")
 ```
 
-```{r kmeans}
+he plot is used to identify the "elbow" point, which is often considered as the optimal number of clusters. The elbow is where the reduction in within-group sum of squares starts to slow down. So here I will use four clusters
+
+
+```{r deploy k-means}
 # K-Means Cluster Analysis
-fit <- kmeans(db_scaled, 5) # 5 cluster solution
+fit <- kmeans(db_scaled, 4) # 4 cluster solution
 # get cluster means
-aggregate(db_scaled,by=list(fit$cluster),FUN=mean)
+kmeans_res <- aggregate(db_scaled,by=list(fit$cluster),FUN=mean)
 # append cluster assignment
 amenData <- data.frame(amenData, fit$cluster)
 st_geometry(amenData) <- geomData
 # plot
-ggplot() + 
-  geom_sf(data = amenData, mapping = aes(fill = as.factor(fit.cluster)), color = NA) + 
-  theme(legend.position = "none") +
+ggplot() +
+  geom_sf(data = amenData, mapping = aes(fill = as.factor(fit.cluster)), color = NA) +
+  # theme(legend.position = "none") +
   ggtitle("Clusters based on Kmeans")
+```
+
+```{r k-means result analysis}
+kmeans_res_long <- pivot_longer(kmeans_res, cols=c(2:4, 6:10), names_to = 'var', values_to = 'val')
+
+# plot
+kmeans_res_long  %>%
+  ggplot(aes(x = var, y = val, group=Group.1)) +
+  geom_line(aes(color=as.factor(PopChg))) +
+  scale_color_discrete() + 
+  labs(title = "Monthly Trend Every Year in Creators on Flickr in Michigan",
+       x = "Month", y = "Number of Creators") +
+  theme_classic()
 ```
 

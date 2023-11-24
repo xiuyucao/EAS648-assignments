@@ -1,5 +1,5 @@
 ---
-title: "Applied Spatial Analysis"
+title: "Urban Development Analysis"
 author: "[Xiuyu Cao](https://github.com/xiuyucao)"
 date: "Nov 22, 2023"
 output:
@@ -236,84 +236,79 @@ Salt Lake City has undergone huge urban development. From the results of the sta
 * other data like Nighttime Light Remote Sensing Imagery, which can be an indicator of the urban development.
 
 ******************************************************
-## Cluster Analysis
-Cluster analysis is the task of grouping a set of objects in such a way that objects in the same cluster are more simmilar to each other than to those in other clusters. Here I want to futher analyze what variables contribute to the urban development in the United State's scale.
+## The United States
+From the case of Salt Lake City, we learnt that distance to the green, road density, distance to the water, and elevation all contribute to the urban development. I want to further analyze whether there is a similar pattern across the country using cluster analysis.
 
-### Data Read-in
-The data set includes different amenity characteristic for the entire US of 10*10km grid. It is developed by [Derek Van Berkel](https://seas.umich.edu/research/faculty/derek-van-berkel), from different sources of data (e.g. [NLCD], [SEDAC], social media, [culture monuments]). First read the data. An overview of the data can be found [here]()
+### Read Data
+The dataset includes various amenity characteristics for the entire United States on a 10x10 km grid. It is developed by [Derek Van Berkel](https://seas.umich.edu/research/faculty/derek-van-berkel), from different sources of data (e.g. [NLCD](https://www.usgs.gov/centers/eros/science/national-land-cover-database), [SEDAC](https://sedac.ciesin.columbia.edu), social media, [culture monuments](https://www.nps.gov/subjects/nationalregister/data-downloads.htm)). First read the data. An overview of the data can be found [here](https://docs.google.com/spreadsheets/d/1ru1IYjUqPzLlDM7RbWqog4J1J7ygi-w_/edit?usp=share_link&ouid=104729275847455570227&rtpof=true&sd=true).
 ```{r read amenity data}
-amenData<- st_read("../data/lab5/AmenDataAll.shp")
-names(amenData)
+amenity<- st_read("../data/lab5/AmenDataAll.shp")  # read data
+names(amenity)  # all of the attributes of the data
+amenity_geom <- st_sfc(amenity$geometry)  # store the geometry data
 ```
 
-```{r store the geometry}
-geomData <- st_sfc(amenData$geometry)
-```
+### Data Preprocessing
+According to the available data in `amenity`, I will use the following data to deploy the cluster analysis:
 
-### Choose Data
-From the case of Salt Lake City, we learnt that distance to the green, road density, distance to the water, and elevation all contribute to the urban development. I want to further analyze whether there is a similar pattern across the country. According to the available data for cluster analysis, I will use the following data to do the cluster analysis:
-
-* Forest percentage in 2001: `Frst2001`
-* Urban percentage in 2001: `Urb2001`
-* Population in 2000: `serPop00`
-* Population change from 2000 to 2010 `PopChg`: derived from `serPop00` and `serPop10`
-* Elevation data: including `DEM_min`, `DEM_max`, `DEM_mean`, and `DEM_Variet`
-* Distance to historical places data `HistMonDist_log`: derived from `HistMon_Di`
-
-First do the data pre-processing. Since there is not a spatial linear relationship with a location attribute, a log transform is deployed to the distance to historical places data. Also, the population change is calculated.
-```{r transforming the data}
-# log transform the distance data
-amenData$HistMonDist_log <- log(amenData$HistMon_Di + 0.00000001)  # log transform the distance data
-amenData$PopChg <- amenData$serPop10 - amenData$serPop00  # get the population change data
-```
-Then get the selected data for cluster analysis
+* Forest percentage in 2001 `Frst2001`
+* Urban percentage in 2001 `Urb2001`
+* Population in 2000 `serPop00`
+* Population change from 2000 to 2010 `PopChg` --> derived from `serPop00` and `serPop10`
+* Elevation data `DEM_min`, `DEM_max`, `DEM_mean`, and `DEM_Variet`
 ```{r select and standardize data}
-amenDataDF<-amenData[,c('Frst2001','Urb2001','serPop00','PopChg','DEM_min','DEM_max','DEM_mean','DEM_Variet','HistMonDist_log')] # select columns
-amenDataDF <- na.omit(amenDataDF)  # omit NA data
-amenDataDF <- as.data.frame(amenDataDF)[1:9]  # get rid of the geometry data for cluster analysis
-db_scaled <- scale(amenDataDF)  # z-score standardization: mean of 0 and std of 1
+amenity$PopChg <- amenity$serPop10 - amenity$serPop00  # get the population change data
+
+amenity.mat <- amenity %>%  # get the matrix for cluster analysis
+  select(Frst2001, Urb2001, serPop00, PopChg, DEM_min, DEM_max, DEM_mean, DEM_Variet) %>%  # select columns
+  na.omit() %>%  # omit NA data
+  st_drop_geometry() %>%  # get rid of the geometry data
+  scale()  # z-score standardization: mean of 0 and std of 1
 ```
 
-### Cluster
-visualize and provide qualitative descriptions of the groups derived from the clustering techniques
-provide evidence of my characterization
-give an explanation of the spatial distribution of these groups
+### Cluster Analysis
+I will use K-means cluster analysis. K-means is typical clustering technique that aims to partition n observations into k clusters in which each observation belongs to the cluster with the nearest mean. K-means clustering minimizes within-cluster variances
+
+Before deploying K-means cluster analysis, the number of clusters needs to be decided. Here I iterate over each number of clusters from 2 to 15 to determine the optimal cluster count based on the 'elbow' point, where the reduction in within-group sum of squares begins to show a slower rate of decline.
 ```{r determine number of clusters}
+set.seed(77)
 # Determine number of clusters
-wss <- (nrow(db_scaled)-1)*sum(apply(db_scaled,2,var))  # total within-group sum of squares for one cluster.
-for (i in 2:15) wss[i] <- sum(kmeans(db_scaled, centers=i)$withinss)  # try different cluster numbers
-plot(1:15, wss, type="b",    # plot and compare
+wss1 <- (nrow(amenity.mat)-1)*sum(apply(amenity.mat,2,var))  # total within-group sum of squares for one cluster.
+for (i in 2:15) wss1[i] <- sum(kmeans(amenity.mat, centers=i)$withinss)  # try different cluster numbers
+plot(1:15, wss1, type="b",    # plot and compare
      xlab="Number of Clusters", ylab="Within groups sum of squares")
 ```
 
-he plot is used to identify the "elbow" point, which is often considered as the optimal number of clusters. The elbow is where the reduction in within-group sum of squares starts to slow down. So here I will use four clusters
-
-
+As shown in the graph, 4 clusters is a good choice. Let's deploy the K-means cluster analysis.
 ```{r deploy k-means}
-# K-Means Cluster Analysis
-fit <- kmeans(db_scaled, 4) # 4 cluster solution
-# get cluster means
-kmeans_res <- aggregate(db_scaled,by=list(fit$cluster),FUN=mean)
-# append cluster assignment
-amenData <- data.frame(amenData, fit$cluster)
-st_geometry(amenData) <- geomData
-# plot
+fit <- kmeans(amenity.mat, 4) # 4 cluster k-means
+kmeans_res <- aggregate(amenity.mat,by=list(fit$cluster),FUN=mean)  # get cluster means
+amenity <- data.frame(amenity, fit$cluster)  # add cluster attribute to the original data
+st_geometry(amenity) <- amenity_geom  # add geometry to the original data
+
+kmeans_res
+# plot result
 ggplot() +
-  geom_sf(data = amenData, mapping = aes(fill = as.factor(fit.cluster)), color = NA) +
-  # theme(legend.position = "none") +
+  geom_sf(data = amenity, mapping = aes(fill = as.factor(fit.cluster)), color = NA) +
+  labs(fill = "Clusters") +
   ggtitle("Clusters based on Kmeans")
 ```
 
-```{r k-means result analysis}
-kmeans_res_long <- pivot_longer(kmeans_res, cols=c(2:4, 6:10), names_to = 'var', values_to = 'val')
+```{r k-means result chart}
+# visualize the k-means result
+kmeans_res_long <- pivot_longer(kmeans_res, cols=c(2:9), names_to = 'var', values_to = 'val')  # turn into long format for plotting
 
 # plot
 kmeans_res_long  %>%
-  ggplot(aes(x = var, y = val, group=Group.1)) +
-  geom_line(aes(color=as.factor(PopChg))) +
-  scale_color_discrete() + 
-  labs(title = "Monthly Trend Every Year in Creators on Flickr in Michigan",
-       x = "Month", y = "Number of Creators") +
-  theme_classic()
+  ggplot(aes(x = var, y = val, group=Group.1)) +  # set x, y, and group
+  geom_line(aes(color=as.factor(Group.1))) +  # plot lines by groups
+  labs(title = "Mean Values of Different Cluster Variables",  # set title
+       x = "Variable", y = "Standardized Value") +  # set x, y, legend
+  scale_color_discrete(name = "Clusters") +  # set legend title
+  theme_classic()  # remove background color
 ```
+
+As shown in the results, based on the population change during 2001-2011 `PopChg`, Cluster 1 underwent significant urban development during this period, as indicated by the pink areas on the map. In contrast, Clusters 3 and 4 (the purple and blue areas) experienced relatively less development. The map reveals that areas of higher development are concentrated near the West Coast and in the Middle-Eastern part of America. Conversely, places with less development are characterized by high-elevation areas in America. The line plot illustrates that in clusters with higher development, the elevation is low and shows low variance. Additionally, these clusters tend to have lower forest cover. Moreover, the clusters with high development levels typically exhibit larger urban areas and higher populations before the development.
+
+### Conclusion
+From the results of the K-means cluster analysis, we can conclude that the elevation, forest cover, and the population and urban area before development all contribute to the urban development in the United States.
 

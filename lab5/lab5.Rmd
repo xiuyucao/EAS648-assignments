@@ -97,9 +97,9 @@ data2plot <- allrasters.df %>%
   melt()  # turn into long format for plot
 
 # set plot legend labels
-legend_labels <- c('Distance to Green Areas (km)', 
+legend_labels <- c('Distance to Green Areas (km)',
                    'Road Density (1km Neighborhood)',
-                   'Distance to Water Bodies (km)', 
+                   'Distance to Water Bodies (km)',
                    'Elevation (m)')
 # plot
 ggplot(data2plot, aes(x=is_changed, y=value,fill=variable)) +  # set plot
@@ -173,7 +173,7 @@ for(i in 3:ncol(sd_sample)){  # get each record
 }
 cbind(raster_names, Moran_res)  # combine the to data frames by column
 ```
-From the result, the expected value is -0.01. The observed values of each raster layer vary. 
+From the result, the expected value is -0.01. The observed values of each raster layer vary.
 
 * The `sd` and `p` are all small, showing a good precision and significance in the result.
 * For the land use type, most of their Moran's Indexes are about or below 0.1 and above 0, indicating very weak positive spatial autocorrelation.
@@ -233,3 +233,76 @@ Salt Lake City has undergone huge urban development. From the results of the sta
 * economic indicators: Variables related to economic activities, such as employment rates, income levels, and economic growth
 * environmental factors: air quality (Aerosol Optical Depth by remote sensing images), Urban Heat Island effect (Land Surface Temperature by Landsat), etc.
 * other data like Nighttime Light Remote Sensing Imagery, which can be an indicator of the urban development.
+
+******************************************************
+## Cluster Analysis
+
+```{r}
+library(fastcluster)
+library(graphics)
+library(ggdendro)
+```
+
+### Data Read-in
+```{r read amenity data}
+library(sf)  # for working with simple feature data
+amenData<- st_read("../data/lab5/AmenDataAll.shp")
+head(amenData)
+names(amenData)
+```
+
+```{r store the geometry}
+geomData <- st_sfc(amenData$geometry)
+```
+
+### Choose Data
+```{r transforming the data}
+amenData$ZooEmpDist_log <- log(amenData$ZooDistEmp + 0.00000001)
+amenData$HotelEmpDist_log <- log(amenData$HotelDistE + 0.00000001)
+amenData$HistMonDist_log <- log(amenData$HistMon_Di + 0.00000001)
+amenData$HighEdEmpDist_log <- log(amenData$HigherEdDi + 0.00000001)
+amenData$GolfEmpDist_log <- log(amenData$GolfDistEm + 0.00000001)
+
+amenData$SocialNorm <- amenData$Nat_Flickr/(amenData$serPop10 + 1)
+amenData$HousingChg <- amenData$Urb2011 - amenData$Urb2001
+```
+choose variables based on a thematic inquiry of my choice
+```{r choose the data}
+amenDataDF<-amenData[,c("SocialNorm", "HousingChg", "Frst2011", "WaterPct", "distcoast", "DEM_max","DEM_range", "HikeLength","ZooEmpDist_log", "HotelEmpDist_log","HistMonDist_log", "HighEdEmpDist_log", "GolfEmpDist_log")]
+## make sure there are no missing data
+amenDataDF <- na.omit(amenDataDF)
+## we need to make it into a normal dataframe to 
+## do the analysis
+amenDataDF <- as.data.frame(amenDataDF)[1:12]
+## calculate z-scores for the dataset
+db_scaled <- scale(amenDataDF)
+```
+
+### Cluster
+visualize and provide qualitative descriptions of the groups derived from the clustering techniques
+provide evidence of my characterization
+give an explanation of the spatial distribution of these groups
+```{r}
+# Determine number of clusters
+wss <- (nrow(db_scaled)-1)*sum(apply(db_scaled,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(db_scaled,
+   centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+  ylab="Within groups sum of squares")
+```
+
+```{r kmeans}
+# K-Means Cluster Analysis
+fit <- kmeans(db_scaled, 5) # 5 cluster solution
+# get cluster means
+aggregate(db_scaled,by=list(fit$cluster),FUN=mean)
+# append cluster assignment
+amenData <- data.frame(amenData, fit$cluster)
+st_geometry(amenData) <- geomData
+# plot
+ggplot() + 
+  geom_sf(data = amenData, mapping = aes(fill = as.factor(fit.cluster)), color = NA) + 
+  theme(legend.position = "none") +
+  ggtitle("Clusters based on Kmeans")
+```
+

@@ -22,13 +22,7 @@ library(sf)  # for working with simple feature data
 
 ******************************************************
 ## Introduction
-* Spatial Analysis simplifies the huge amount of detailed information in order to extract the main trends
-* Spatial dependency leads to spatial autocorrelation, which violates standard statistical techniques that assume independence among observations
-  * Positive Spatial Autocorrelation
-  * Negative Spatial Autocorrelation
-* spatial regression models capture the relationships and do not suffer from these weaknesses, but are computationally intensive
-* It is also appropriate to view spatial dependency as a source of information rather than something to be corrected
-* Spatial Autocorrelation Statistics measure and analyze the degree of dependency among observations in a geographic space.
+In this comprehensive study, I examined data from both Salt Lake City and the United States. My aim was to discern the factors that have contributed to urban development in recent decades, thereby gaining an insight into the intricacies of urban growth. The findings of this analysis not only enhance our understanding of urban development dynamics but also offer valuable insights for informed decision-making in the realms of land management and conservation.
 
 
 ******************************************************
@@ -228,7 +222,7 @@ ggplot(predicted, aes(y=y, x=x, color=probability)) +
 ```
 
 ### Conclusion
-Salt Lake City has undergone huge urban development. From the results of the statistical analysis and the GLM, we can see the distance to the parks, road density, and distance to the water bodies all have a positive relationship with urban development, while the elevation has a negative one. And the road density contribute the most to the urban development. In order to better explain urban development, besides the land-use type, I can add other data such as:
+Salt Lake City has undergone huge urban development. From the results of the statistical analysis and the GLM, we can see the distance to the parks, road density, and distance to the water bodies all have a positive relationship with urban development, while the elevation has a negative one. And the road density contribute the most to the urban development. In order to better explain urban development, besides the land-use type, other possible data can be used are as follows:
 
 * population density: High population density can be associated with increased urbanization. It reflects the concentration of people in a given area.
 * economic indicators: Variables related to economic activities, such as employment rates, income levels, and economic growth
@@ -269,12 +263,12 @@ amenity.mat <- amenity %>%  # get the matrix for cluster analysis
 I will use K-means cluster analysis. K-means is typical clustering technique that aims to partition n observations into k clusters in which each observation belongs to the cluster with the nearest mean. K-means clustering minimizes within-cluster variances
 
 Before deploying K-means cluster analysis, the number of clusters needs to be decided. Here I iterate over each number of clusters from 2 to 15 to determine the optimal cluster count based on the 'elbow' point, where the reduction in within-group sum of squares begins to show a slower rate of decline.
-```{r determine number of clusters}
+```{r determine number of clusters, warning=F}
 set.seed(77)
 # Determine number of clusters
-wss1 <- (nrow(amenity.mat)-1)*sum(apply(amenity.mat,2,var))  # total within-group sum of squares for one cluster.
-for (i in 2:15) wss1[i] <- sum(kmeans(amenity.mat, centers=i)$withinss)  # try different cluster numbers
-plot(1:15, wss1, type="b",    # plot and compare
+wss <- (nrow(amenity.mat)-1)*sum(apply(amenity.mat,2,var))  # total within-group sum of squares for one cluster.
+for (i in 2:15) wss[i] <- sum(kmeans(amenity.mat, centers=i)$withinss)  # try different cluster numbers
+plot(1:15, wss, type="b",    # plot and compare
      xlab="Number of Clusters", ylab="Within groups sum of squares")
 ```
 
